@@ -1,0 +1,15 @@
+/.opencode/
+/app/.agents/
+/app/.claude/
+/app/.codex/
+/app/.mcp.json
+/app/CLAUDE.md
+/app/boost.json
+/wireframe.png
+**/.env
+**/.env.*
+!**/.env.example
+**/*.sqlite*
+**/*.log
+**/node_modules/
+**/vendor/

@@ -1,0 +1,132 @@
+<!-- Pegar una vez en un bloque HTML personalizado de WordPress. Configurar las dos constantes. -->
+<style>
+#aging-question{--aq-purple:#672f63;--aq-red:#e73c4e;box-sizing:border-box;max-width:720px;margin:24px auto;padding:clamp(20px,5vw,40px);border:1px solid #e7dce7;border-radius:16px;background:#fff;color:#424242;font:16px/1.6 'Poppins',Arial,sans-serif;text-align:left}
+#aging-question *{box-sizing:border-box}#aging-question h2{margin:0 0 8px;color:var(--aq-purple);font:700 clamp(25px,5vw,34px)/1.2 'Poppins',Arial,sans-serif}#aging-question p{margin:0 0 24px}#aging-question label{display:block;font-weight:600;margin:16px 0 6px}#aging-question input,#aging-question textarea{display:block;width:100%;padding:12px 14px;border:1px solid #887b88;border-radius:7px;background:#fff;color:#303030;font:inherit}#aging-question textarea{resize:vertical;min-height:150px}#aging-question :focus-visible{outline:3px solid var(--aq-purple);outline-offset:3px}#aging-question .aq-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}#aging-question .aq-turnstile{margin-top:20px;min-width:0}#aging-question .aq-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px}#aging-question button{min-height:48px;padding:12px 24px;border:0;border-radius:24px;background:var(--aq-red);color:#fff;font:600 16px/1.4 'Poppins',Arial,sans-serif;cursor:pointer}#aging-question button:disabled{background:#746574;cursor:not-allowed}#aging-question .aq-help{display:block;margin-top:8px;font-size:14px}#aging-question .aq-message{margin:16px 0 0;white-space:pre-line;overflow-wrap:anywhere}#aging-question .aq-message[data-kind=error]{color:#a0182a}#aging-question .aq-message[data-kind=success]{color:#27603b}#aging-question .aq-retry{background:transparent;color:var(--aq-purple);border:1px solid currentColor;margin-top:12px}#aging-question [hidden]{display:none!important}@media(max-width:520px){#aging-question .aq-fields{grid-template-columns:1fr;gap:0}#aging-question .aq-actions{align-items:stretch;flex-direction:column}#aging-question .aq-actions button{width:100%}}
+</style>
+<section id="aging-question" aria-labelledby="aq-heading">
+  <h2 id="aq-heading">Hacé tu pregunta</h2>
+  <p>Compartí tu pregunta con el equipo del encuentro.</p>
+  <form>
+    <div class="aq-fields">
+      <div><label for="aq-name">Nombre</label><input id="aq-name" name="name" autocomplete="name" maxlength="150" required></div>
+      <div><label for="aq-email">Email</label><input id="aq-email" name="email" type="email" autocomplete="email" maxlength="255" required></div>
+    </div>
+    <label for="aq-body">Tu pregunta</label>
+    <textarea id="aq-body" name="body" maxlength="5000" required aria-describedby="aq-help"></textarea>
+    <span id="aq-help" class="aq-help">Todos los campos son obligatorios. Podés enviar una pregunta cada 30 segundos.</span>
+    <div class="aq-turnstile"></div>
+    <button type="button" class="aq-retry" hidden>Reintentar verificación</button>
+    <div class="aq-actions"><button type="submit" disabled>Enviar pregunta</button><span class="aq-countdown" role="timer" aria-live="off"></span></div>
+    <p class="aq-message" role="status" aria-live="polite" aria-atomic="true"></p>
+  </form>
+  <noscript>Activá JavaScript para verificar y enviar tu pregunta.</noscript>
+</section>
+<script>
+(() => {
+  'use strict';
+  const BACKEND_URL = 'BACKEND_URL'; // URL HTTPS de Laravel, sin barra final.
+  const TURNSTILE_SITEKEY = 'TURNSTILE_SITEKEY'; // Clave pública; nunca usar la secreta.
+  const root = document.getElementById('aging-question');
+  const form = root.querySelector('form');
+  // Optional convenience only: URL values never establish authenticated identity.
+  const params = new URLSearchParams(window.location.search);
+  for (const [parameter, field, limit] of [['aging_nombre', 'name', 150], ['aging_email', 'email', 255]]) {
+    const values = params.getAll(parameter);
+    if (values.length !== 1) continue;
+    const value = values[0].trim();
+    if (!value || value.length > limit || /[\u0000-\u001f\u007f]/.test(value)) continue;
+    const input = form.elements[field];
+    input.value = value;
+    if (!input.checkValidity()) input.value = '';
+  }
+  const body = form.elements.body;
+  const submit = form.querySelector('[type="submit"]');
+  const retry = root.querySelector('.aq-retry');
+  const status = root.querySelector('.aq-message');
+  const countdown = root.querySelector('.aq-countdown');
+  const container = root.querySelector('.aq-turnstile');
+  let token = '', widgetId = null, loading = false, sending = false, until = 0;
+  const configured = BACKEND_URL !== 'BACKEND_URL' && TURNSTILE_SITEKEY !== 'TURNSTILE_SITEKEY';
+  function message(text, kind = '') { status.textContent = text; status.dataset.kind = kind; }
+  function update() {
+    const seconds = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    countdown.textContent = seconds ? `Podés volver a preguntar en ${seconds} s.` : '';
+    submit.disabled = !configured || sending || seconds > 0 || !token || !body.value.trim();
+    submit.textContent = sending ? 'Enviando…' : 'Enviar pregunta';
+  }
+  function resetVerification() {
+    token = '';
+    if (widgetId !== null && window.turnstile) window.turnstile.reset(widgetId);
+    update();
+  }
+  function verificationError(text) {
+    token = ''; retry.hidden = false; message(text, 'error'); update();
+  }
+  function render() {
+    if (widgetId !== null || !window.turnstile || !body.value.trim()) return;
+    try {
+      widgetId = window.turnstile.render(container, {
+        sitekey: TURNSTILE_SITEKEY, action: 'question', language: 'es', size: 'flexible',
+        'response-field': false,
+        callback(value) { token = value; retry.hidden = true; update(); },
+        'expired-callback'() { verificationError('La verificación venció. Volvé a verificar para enviar.'); resetVerification(); },
+        'error-callback'() { verificationError('No se pudo completar la verificación. Reintentá.'); return true; },
+        'timeout-callback'() { verificationError('La verificación agotó el tiempo. Reintentá.'); }
+      });
+    } catch (_) { verificationError('No se pudo iniciar la verificación. Reintentá.'); }
+  }
+  function startVerification() {
+    if (!configured || !body.value.trim()) return;
+    if (window.turnstile) { render(); return; }
+    if (loading) return;
+    loading = true;
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true; script.defer = true;
+    script.onload = () => { loading = false; render(); };
+    script.onerror = () => { loading = false; script.remove(); verificationError('No se pudo cargar la verificación. Revisá tu conexión y reintentá.'); };
+    document.head.appendChild(script);
+  }
+  body.addEventListener('input', () => { startVerification(); update(); });
+  retry.addEventListener('click', () => {
+    retry.hidden = true; message('');
+    if (widgetId !== null) resetVerification(); else startVerification();
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (sending || Date.now() < until || !form.reportValidity()) return;
+    if (!token) { message('Completá la verificación antes de enviar.', 'error'); startVerification(); return; }
+    sending = true; message(''); update();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/api/questions`, {
+        method: 'POST', credentials: 'omit', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ name: form.elements.name.value.trim(), email: form.elements.email.value.trim(), question: body.value.trim(), 'cf-turnstile-response': token })
+      });
+      const data = await response.json().catch(() => ({}));
+      const seconds = Number(data.retry_after);
+      if ((response.status === 201 || response.status === 429) && Number.isFinite(seconds) && seconds >= 0) until = Date.now() + Math.ceil(seconds) * 1000;
+      if (response.status === 201) {
+        body.value = '';
+        message('Tu pregunta fue enviada. ¡Gracias!', 'success');
+      } else if (response.status === 429) {
+        message('Todavía tenés que esperar para enviar otra pregunta.' + (Number.isFinite(seconds) ? '' : ' Reintentá más tarde.'), 'error');
+      } else if (response.status === 422) {
+        const errors = data.errors && typeof data.errors === 'object' ? Object.values(data.errors).flat().filter(value => typeof value === 'string') : [];
+        message(errors.length ? errors.join('\n') : 'Revisá los datos y la verificación antes de volver a enviar.', 'error');
+      } else {
+        message('No se pudo enviar tu pregunta. Volvé a verificar e intentá de nuevo.', 'error');
+      }
+    } catch (_) {
+      message('No pudimos confirmar el envío. Revisá tu conexión antes de reintentar; la pregunta podría haberse recibido.', 'error');
+    } finally {
+      clearTimeout(timeout); sending = false; resetVerification(); update();
+    }
+  });
+  if (!configured) message('El formulario todavía no está configurado para recibir preguntas.', 'error');
+  setInterval(update, 250);
+  update();
+})();
+</script>

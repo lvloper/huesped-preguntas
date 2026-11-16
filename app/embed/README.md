@@ -1,0 +1,51 @@
+# Formulario embebido en WordPress
+
+Copiar el contenido completo de `formulario.html` una sola vez a un bloque **HTML personalizado** de la página de Eventos Huésped. El editor debe permitir `<script>` y `<style>`; si WordPress los elimina, cargar estos recursos desde el tema o un mecanismo autorizado de snippets, conservando el orden y el contenedor. No se necesita compilar ni instalar dependencias.
+
+Antes de publicarlo, reemplazar las constantes `BACKEND_URL` (origen HTTPS de Laravel, sin `/api/questions`) y `TURNSTILE_SITEKEY` (clave pública). Nunca incluir la clave secreta en WordPress. Registrar el dominio `eventos.huesped.org.ar` en Turnstile. Los placeholders bloquean el envío de manera visible.
+
+El diseño toma el violeta `#672f63`, rojo `#e73c4e` y la tipografía Poppins del sitio de referencia. Hereda Poppins si está cargada; tiene fallback Arial y CSS acotado al contenedor. No modifica el sitio de referencia ni incorpora fuentes o dependencias adicionales.
+
+## Contrato HTTP
+
+El navegador envía `POST BACKEND_URL/api/questions`, con `Content-Type: application/json`, `Accept: application/json`, sin cookies, y estos campos:
+
+```json
+{"name":"Nombre","email":"persona@example.org","question":"Pregunta","cf-turnstile-response":"token"}
+```
+
+- `201`: pregunta guardada; JSON con `retry_after` numérico en segundos. Solo este estado muestra éxito y vacía la pregunta.
+- `429`: pregunta rechazada por frecuencia; JSON con `retry_after` numérico en segundos. Conserva los campos y muestra cuenta regresiva visible junto al botón, también en móvil.
+- `422`: validación rechazada; admite el objeto `errors` de Laravel (arrays de mensajes). Conserva los campos.
+- Otros estados, JSON inválido o problemas de conexión: no muestran éxito. Una interrupción puede ocurrir después de que el servidor guardó la pregunta, por lo que se informa que no se pudo confirmar el envío.
+
+El backend debe devolver siempre `retry_after` válido en `201` y `429`; la interfaz no inventa una espera cuando falta. Configurar CORS para el origen exacto `https://eventos.huesped.org.ar`, métodos POST/OPTIONS y cabeceras Content-Type/Accept. CORS no autentica al visitante ni impide todas las solicitudes externas.
+
+## Verificación y decisiones pendientes
+
+Turnstile se carga y renderiza explícitamente al comenzar a escribir la pregunta, con acción `question`. Guarda el ID y reinicia el widget después de cada intento HTTP, incluidos errores, ya que cada token es de un solo uso. Maneja expiración, timeout, fallo de carga y reintento. El backend debe validar Siteverify, acción `question` y hostname autorizado antes de guardar; la clave secreta queda en Laravel. Referencia: https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/.
+
+Nombre y email son datos declarados, sin autenticación. El snippet precarga parámetros de enlace según el contrato siguiente, sin autenticar a la persona. El límite acordado es de una pregunta cada 30 segundos por IP. El servidor debe aplicar el límite; la cuenta regresiva es solo una indicación de su respuesta.
+
+## Verificación de integración pendiente
+
+Con URL y claves reales, probar desde WordPress: aceptación 201, rechazo 429 con espera, validación 422, token expirado/inválido/reutilizado, caída de red, y vista móvil a 320 px. Verificar que solo una pregunta aceptada se guarda y que el servidor rechaza el segundo envío dentro del límite. Las pruebas locales con mocks no demuestran la configuración real de Turnstile, CORS ni la política de identidad.
+
+## Parámetros de enlace acordados
+
+Se resuelve como precarga opcional, sin autologin ni tokens de acceso:
+
+- `aging_nombre`: nombre, máximo 150 caracteres.
+- `aging_email`: email, máximo 255 caracteres y formato válido.
+
+Ejemplo con datos ficticios: `https://eventos.huesped.org.ar/aging-2026/?aging_nombre=Ana%20P%C3%A9rez&aging_email=ana%40example.com`.
+
+Quien prepare los enlaces puede construir la query con `URLSearchParams`; no hay emisor privilegiado ni servicio nuevo de generación. Los campos permanecen visibles y editables. Parámetros ausentes, vacíos, repetidos, demasiado largos o inválidos se ignoran por campo y se completan manualmente. Los valores se asignan mediante `.value`, nunca como HTML. La validación de Laravel sigue siendo obligatoria. El formulario no escribe estos datos en almacenamiento del navegador.
+
+Los parámetros son datos declarados, no prueba de identidad, autorización ni clave del rate limit. No incluir secretos en enlaces. Nombre y email en una URL pueden quedar en historial y registros del sitio; el enlace general sin parámetros sigue funcionando y evita esa exposición.
+
+## Prueba local lista
+
+Con Laravel iniciado en `127.0.0.1:8001`, abrir `http://127.0.0.1:8001/prueba-formulario`. Sirve `prueba-local.html` solo cuando APP_ENV es local. No abrirlo como file://: usar esa URL. Incluye las claves públicas dummy de Cloudflare; Siteverify se consulta realmente, pero no demuestra protección antibot. El backend admite la respuesta especial (hostname example.com, sin action) exclusivamente con la clave dummy exacta y entorno local; fuera de local esa clave se rechaza. El snippet WordPress original conserva placeholders de producción.
+
+El servidor local queda ligado a loopback. La cuenta de prueba es solo local y no debe copiarse a producción. Se creó una pregunta ficticia para comprobar recepción.
