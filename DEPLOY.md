@@ -134,7 +134,7 @@ APP_ENV=production
 APP_DEBUG=false
 SESSION_COOKIE=huesped-preguntas-session
 SESSION_DOMAIN=null
-SESSION_PATH=/aging-panel
+SESSION_PATH=/
 SESSION_SECURE_COOKIE=true
 SESSION_SAME_SITE=lax
 ```
@@ -144,9 +144,9 @@ SESSION_SAME_SITE=lax
 En el bloque Nginx de eventos provisto, conservar `location ^~ /aging-panel/`, `proxy_pass https://aging.huesped.org.ar/;`, SNI, validación TLS y las cabeceras Host/Forwarded-Host/Prefix/Proto/Port. Cambiar:
 
 ```nginx
-# Laravel ya envía la cookie con el path correcto:
-proxy_cookie_path off;
-proxy_cookie_domain off;
+# Configuración activa: Nginx transforma el path raíz de Laravel:
+proxy_cookie_path / /aging-panel/;
+proxy_cookie_domain aging.huesped.org.ar eventos.huesped.org.ar;
 
 # En el proxy de entrada: no conservar X-Forwarded-For arbitrario del visitante.
 # Requiere que $remote_addr ya sea IP real si hay Cloudflare delante.
@@ -174,4 +174,6 @@ No ejecutar `cache:clear` ni `optimize:clear`: no hace falta vaciar la caché de
 
 Verificar login, action del formulario, assets, logout, polling `/aging-panel/panel/data`, gestión de participantes y formulario `/aging-panel/formulario`. El iframe y snippet del repositorio ya apuntan al nuevo destino. El widget real debe permitir `eventos.huesped.org.ar`.
 
-Estado de esta revisión: código y tests preparados localmente; SSH por clave fue rechazado, por lo que no se modificó el `.env` remoto ni se limpiaron sus cachés. La lectura pública del login devolvió 200 pero todavía generaba action/assets hacia aging.huesped.org.ar.
+Revisión posterior con SSH: la petición atraviesa Cloudflare dos veces y el upstream sobrescribe X-Forwarded-Host con aging.huesped.org.ar. En producción el código fija URLs a APP_URL para no depender de ese host. TRUSTED_PROXIES incluye los rangos oficiales IPv4/IPv6 de Cloudflare consultados el 17/11/2026 y 20.220.171.156, salto de eventos observado. El .env tiene respaldo privado y mantiene SESSION_PATH=/ porque el Nginx existente reescribe a /aging-panel/. No cambiar únicamente uno de esos dos ajustes. No se modificó Nginx con el usuario del sitio.
+
+Verificación tras publicación: release 6, commit `c1f0a7641abef666edc4c7c621ab87b82bf05674`. Login y formulario HTTP 200 bajo `/aging-panel`; action y assets apuntan al dominio/prefijo público; panel sin sesión redirige a ese login; CSS/JS/logo responden 200. Cookies Secure, SameSite=Lax, Path=/aging-panel/; sesión HttpOnly. Deploy verificó salud autenticada. No se ensayó ingreso con contraseña de Débora ni envíos reales de preguntas. La sonda temporal de cabeceras se retiró y se comprobó su ausencia.
