@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\QuestionController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,10 +11,14 @@ Route::get('/formulario', function () {
     ])->withHeaders([
         'Content-Security-Policy' => "frame-ancestors 'self' https://eventos.huesped.org.ar",
         'Cache-Control' => 'no-store, private',
-        'Referrer-Policy' => 'strict-origin-when-cross-origin',
+        'Referrer-Policy' => 'no-referrer',
     ]);
 })->name('formulario');
 Route::middleware(['auth', 'can:access-panel'])->group(function () {
+    Route::get('/panel/participantes', [ParticipantController::class, 'index'])->name('participants.index');
+    Route::post('/panel/participantes', [ParticipantController::class, 'store'])->name('participants.store');
+    Route::post('/panel/participantes/importar', [ParticipantController::class, 'import'])->name('participants.import');
+    Route::get('/panel/participantes/exportar', [ParticipantController::class, 'export'])->name('participants.export');
     Route::view('/panel', 'panel')->name('dashboard');
     Route::get('/panel/data', [QuestionController::class, 'index']);
     Route::patch('/panel/questions/{question}', [QuestionController::class, 'update']);

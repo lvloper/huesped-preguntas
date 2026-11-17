@@ -12,6 +12,7 @@
 <header>
     <a class="brand" href="{{ route('dashboard') }}" aria-label="Fundación Huésped · Panel"><x-application-logo /></a>
     <span>Panel de preguntas</span>
+    <a href="{{ route('participants.index') }}">Participantes</a>
     <form method="POST" action="{{ url('/logout') }}">@csrf<button class="outline">Cerrar sesión</button></form>
 </header>
 <main>

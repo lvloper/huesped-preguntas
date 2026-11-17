@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Participant;
 use App\Models\Question;
 use App\Services\SubmissionIdentity;
 use Illuminate\Http\Client\ConnectionException;
@@ -12,12 +13,22 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 
 class QuestionController extends Controller
 {
     public function store(Request $request, SubmissionIdentity $identity): JsonResponse
     {
-        $data = $request->validate(['name' => 'required|string|max:150', 'email' => 'required|email|max:255', 'question' => 'required|string|max:5000', 'cf-turnstile-response' => 'required|string|max:2048']);
+        $data = $request->validate(['uid' => 'sometimes|required|string|size:40|alpha_num:ascii', 'name' => 'exclude_with:uid|required_without:uid|string|max:150', 'email' => 'exclude_with:uid|required_without:uid|email|max:255', 'question' => 'required|string|max:5000', 'cf-turnstile-response' => 'required|string|max:2048']);
+        $participant = null;
+        if (isset($data['uid'])) {
+            $participant = Participant::where('uid', $data['uid'])->first();
+            if (! $participant) {
+                throw ValidationException::withMessages(['uid' => 'No encontramos los datos de este enlace.']);
+            }
+            $data['name'] = $participant->name;
+            $data['email'] = $participant->email;
+        }
         $key = $identity->resolve($request);
         abort_if(! $key || ! config('aging.turnstile_secret'), 503, 'La recepción todavía no está habilitada.');
         $dummyKey = config('aging.turnstile_secret') === '1x0000000000000000000000000000000AA';
@@ -42,7 +53,7 @@ class QuestionController extends Controller
 
                 return response()->json(['message' => 'Esperá antes de volver a preguntar.', 'retry_after' => $remaining], 429)->header('Retry-After', (string) $remaining);
             }
-            Question::create(collect($data)->only(['name', 'email', 'question'])->all());
+            Question::create([...collect($data)->only(['name', 'email', 'question'])->all(), 'participant_id' => $participant?->id]);
             $attempts = RateLimiter::attempts($cacheKey) + 1;
             RateLimiter::clear($cacheKey);
             RateLimiter::increment($cacheKey, 30, $attempts);

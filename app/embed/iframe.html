@@ -3,7 +3,14 @@
 <script>
 (() => {
   const frame = document.getElementById('aging-question-frame');
-  const origin = new URL(frame.src).origin;
+  const frameUrl = new URL(frame.src);
+  const parameters = new URLSearchParams(window.location.search);
+  if (parameters.has('uid')) {
+    frameUrl.searchParams.delete('uid');
+    for (const uid of parameters.getAll('uid')) frameUrl.searchParams.append('uid', uid.trim());
+    frame.src = frameUrl.href;
+  }
+  const origin = frameUrl.origin;
   frame.addEventListener('load', () => {
     frame.contentWindow.postMessage({ type: 'aging-question:measure' }, origin);
   });

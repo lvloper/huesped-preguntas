@@ -11,7 +11,7 @@ class Question extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['name', 'email', 'question', 'selected', 'answered'];
+    protected $fillable = ['name', 'email', 'question', 'selected', 'answered', 'participant_id'];
 
     protected function casts(): array
     {
