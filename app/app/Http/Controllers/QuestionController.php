@@ -63,7 +63,9 @@ class QuestionController extends Controller
             return response()->json(['answered' => Question::where('answered', true)->orderByDesc('id')->paginate(20)])->header('Cache-Control', 'no-store');
         }
 
-        return response()->json(['received' => Question::orderBy('id')->paginate(20), 'selected' => Question::where('selected', true)->where('answered', false)->orderBy('id')->get(), 'discarded_count' => Question::onlyTrashed()->count()])->header('Cache-Control', 'no-store');
+        $data = $request->validate(['order' => 'sometimes|required|in:asc,desc']);
+
+        return response()->json(['received' => Question::where('selected', false)->orderBy('id', $data['order'] ?? 'asc')->paginate(20), 'selected' => Question::where('selected', true)->where('answered', false)->orderBy('id')->get(), 'discarded_count' => Question::onlyTrashed()->count()])->header('Cache-Control', 'no-store');
     }
 
     public function update(Request $request, Question $question): JsonResponse

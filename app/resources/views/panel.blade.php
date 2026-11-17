@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Panel de preguntas · Huésped</title>
-    <link rel="stylesheet" href="{{ asset('panel.css') }}">
-    <script src="{{ asset('panel.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('panel.css') }}?v={{ filemtime(public_path('panel.css')) }}">
+    <script src="{{ asset('panel.js') }}?v={{ filemtime(public_path('panel.js')) }}" defer></script>
 </head>
 <body data-poll-ms="{{ config('aging.poll_ms', 5000) }}">
 <header>
@@ -31,7 +31,10 @@
     </section>
     <div class="columns">
         <section aria-labelledby="received-title">
-            <h2 id="received-title">Preguntas recibidas <span id="received-count"></span></h2>
+            <div class="section-heading">
+                <h2 id="received-title">Preguntas recibidas <span id="received-count"></span></h2>
+                <button id="sort-received" class="outline" type="button" title="Más antiguas primero. Cambiar a DESC.">Orden: ASC ↑</button>
+            </div>
             <div id="received-list" class="cards"></div>
             <nav id="received-pages" aria-label="Páginas de preguntas recibidas"></nav>
         </section>

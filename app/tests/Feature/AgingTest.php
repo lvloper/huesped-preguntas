@@ -8,6 +8,7 @@ use App\Services\SubmissionIdentity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class AgingTest extends TestCase
@@ -249,6 +250,62 @@ class AgingTest extends TestCase
             ->assertJsonCount(1, 'selected')->assertJsonPath('selected.0.id', $selected->id);
         $this->getJson('/panel/data?answered=1')->assertOk()
             ->assertJsonCount(1, 'answered.data')->assertJsonPath('answered.data.0.id', $answered->id);
+    }
+
+    public function test_selecting_removes_a_question_from_received_and_deselecting_returns_it(): void
+    {
+        $question = $this->createQuestion();
+        $other = $this->createQuestion();
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->patchJson('/panel/questions/'.$question->id, ['selected' => true])->assertOk();
+
+        $this->assertDatabaseHas('questions', ['id' => $question->id, 'selected' => true]);
+        $this->getJson('/panel/data')->assertOk()
+            ->assertJsonPath('received.total', 1)
+            ->assertJsonPath('received.data.0.id', $other->id)
+            ->assertJsonCount(1, 'selected')
+            ->assertJsonPath('selected.0.id', $question->id);
+
+        $this->patchJson('/panel/questions/'.$question->id, ['selected' => false])->assertOk();
+
+        $this->assertDatabaseHas('questions', ['id' => $question->id, 'selected' => false, 'answered' => false]);
+        $this->getJson('/panel/data')->assertOk()
+            ->assertJsonPath('received.total', 2)
+            ->assertJsonPath('received.data.0.id', $question->id)
+            ->assertJsonPath('received.data.1.id', $other->id)
+            ->assertJsonCount(0, 'selected');
+    }
+
+    #[TestWith(['asc', 0, 19, 20])]
+    #[TestWith(['desc', 20, 1, 0])]
+    public function test_received_sort_applies_before_pagination_and_excludes_selected_and_discarded(string $order, int $firstIndex, int $lastIndex, int $secondPageIndex): void
+    {
+        $questions = collect(range(1, 21))->map(fn (): Question => $this->createQuestion());
+        $selected = $this->createQuestion();
+        $selected->update(['selected' => true]);
+        $discarded = $this->createQuestion();
+        $discarded->delete();
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->getJson('/panel/data?order='.$order)->assertOk()
+            ->assertJsonCount(20, 'received.data')
+            ->assertJsonPath('received.total', 21)
+            ->assertJsonPath('received.data.0.id', $questions->get($firstIndex)->id)
+            ->assertJsonPath('received.data.19.id', $questions->get($lastIndex)->id)
+            ->assertJsonCount(1, 'selected')
+            ->assertJsonPath('selected.0.id', $selected->id)
+            ->assertJsonPath('discarded_count', 1);
+        $this->getJson('/panel/data?order='.$order.'&page=2')->assertOk()
+            ->assertJsonCount(1, 'received.data')
+            ->assertJsonPath('received.data.0.id', $questions->get($secondPageIndex)->id);
+    }
+
+    public function test_received_sort_rejects_an_unknown_order(): void
+    {
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->getJson('/panel/data?order=invalid')->assertUnprocessable()->assertJsonValidationErrors('order');
     }
 
     public function test_cors_allows_the_event_site_to_submit_questions(): void

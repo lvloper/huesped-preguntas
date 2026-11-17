@@ -1,7 +1,7 @@
 (() => {
     'use strict';
     const $ = (id) => document.getElementById(id);
-    let page = 1, answeredPage = 1, discardedPage = 1, received, selected = [], answered, discarded, discardedCount = 0, loading = false, version = 0;
+    let page = 1, answeredPage = 1, discardedPage = 1, receivedOrder = 'asc', received, selected = [], answered, discarded, discardedCount = 0, loading = false, version = 0;
     const busy = new Set(), pending = new Map();
     let interacting = false, deferredRender = false;
     document.addEventListener('pointerdown', () => { interacting = true; });
@@ -32,10 +32,15 @@
         const date = new Date(type === 'discarded' ? q.deleted_at : q.created_at); footer.append(text('span', 'date', Number.isNaN(date.getTime()) ? '' : `${type === 'discarded' ? 'Descartada · ' : ''}${date.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`));
         if (type !== 'answered' && type !== 'discarded') {
             const button = text('button', '', ''); button.type = 'button'; button.dataset.action = type === 'received' ? 'select' : 'answer';
-            if (type === 'received') { button.textContent = q.selected ? '✓ Seleccionada' : 'Seleccionar'; button.setAttribute('aria-pressed', String(Boolean(q.selected))); button.disabled = busy.has(q.id) || pending.has(q.id) || Boolean(q.answered); button.onclick = () => mutate(q.id, { selected: !q.selected }); }
+            if (type === 'received') { button.textContent = 'Seleccionar'; button.disabled = busy.has(q.id) || pending.has(q.id) || Boolean(q.answered); button.onclick = () => mutate(q.id, { selected: true }); }
             else if (pending.has(q.id)) { el.classList.add('pending'); button.className = 'undo'; button.textContent = 'Deshacer · respondida'; button.disabled = pending.get(q.id).saving; button.onclick = () => { clearTimeout(pending.get(q.id).timer); pending.delete(q.id); render(); }; }
             else { button.textContent = 'Marcar respondida'; button.disabled = busy.has(q.id); button.onclick = () => markAnswered(q); }
-            footer.append(button);
+            const actions = text('div', 'card-actions', '');
+            if (type === 'selected') {
+                const deselect = text('button', 'outline', 'Deseleccionar'); deselect.type = 'button'; deselect.dataset.action = 'deselect';
+                deselect.disabled = busy.has(q.id) || pending.has(q.id); deselect.onclick = () => mutate(q.id, { selected: false }); actions.append(deselect);
+            }
+            actions.append(button); footer.append(actions);
         }
         el.append(footer); return el;
     }
@@ -59,6 +64,8 @@
     }
     function render() {
         if (interacting) { deferredRender = true; return; }
+        $('sort-received').textContent = receivedOrder === 'asc' ? 'Orden: ASC ↑' : 'Orden: DESC ↓';
+        $('sort-received').title = receivedOrder === 'asc' ? 'Más antiguas primero. Cambiar a DESC.' : 'Más recientes primero. Cambiar a ASC.';
         if (received) { list('received-list', received.data, 'received', 'Todavía no hay preguntas recibidas.'); $('received-count').textContent = received.total; pagination('received-pages', received, n => { page = n; version++; refresh(); }); }
         const active = [...pending.values()].map(p => p.question).concat(selected.filter(q => !pending.has(q.id)));
         list('selected-list', active, 'selected', 'Las preguntas que selecciones aparecerán acá.'); $('selected-count').textContent = active.length;
@@ -67,9 +74,9 @@
         if (discarded) { list('discarded-list', discarded.data, 'discarded', 'Todavía no hay preguntas descartadas.'); pagination('discarded-pages', discarded, n => { discardedPage = n; version++; refresh(); }); }
     }
     async function refresh() {
-        if (loading) return; loading = true; const start = version, currentPage = page, currentAnsweredPage = answeredPage, currentDiscardedPage = discardedPage;
+        if (loading) return; loading = true; const start = version, currentPage = page, currentAnsweredPage = answeredPage, currentDiscardedPage = discardedPage, currentOrder = receivedOrder;
         try {
-            const data = await request(`/panel/data?page=${currentPage}`);
+            const data = await request(`/panel/data?page=${currentPage}&order=${currentOrder}`);
             let archive, trash;
             if (!$('answered-section').hidden) archive = await request(`/panel/data?answered=1&page=${currentAnsweredPage}`);
             if (!$('discarded-section').hidden) trash = await request(`/panel/data?discarded=1&page=${currentDiscardedPage}`);
@@ -106,6 +113,7 @@
     }
     $('show-answered').onclick = () => { const open = $('answered-section').hidden; $('answered-section').hidden = !open; $('show-answered').setAttribute('aria-expanded', String(open)); $('show-answered').textContent = open ? 'Ocultar preguntas respondidas' : 'Ver preguntas respondidas'; version++; if (open) refresh(); };
     $('show-discarded').onclick = () => { const open = $('discarded-section').hidden; $('discarded-section').hidden = !open; $('show-discarded').setAttribute('aria-expanded', String(open)); version++; if (open) refresh(); };
+    $('sort-received').onclick = () => { receivedOrder = receivedOrder === 'asc' ? 'desc' : 'asc'; page = 1; version++; render(); refresh(); };
     refresh(); setInterval(() => { if (!document.hidden) refresh(); }, Math.max(1000, Number(document.body.dataset.pollMs) || 5000));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 })();
