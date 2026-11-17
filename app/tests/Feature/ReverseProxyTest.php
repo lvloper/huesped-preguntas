@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Providers\AppServiceProvider;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReverseProxyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private function proxy(): void
     {
         config(['trustedproxy.proxies' => ['192.0.2.10']]);
@@ -45,6 +48,21 @@ class ReverseProxyTest extends TestCase
         (new AppServiceProvider($this->app))->boot();
         $this->withHeaders(['Host' => 'aging.huesped.org.ar'])->get('https://aging.huesped.org.ar/login')
             ->assertOk()->assertSee('action="https://eventos.huesped.org.ar/aging-panel/login"', false);
+    }
+
+    public function test_login_discards_upstream_intended_url_and_redirects_once(): void
+    {
+        $this->proxy();
+        $this->withHeader('X-Forwarded-Host', 'aging.huesped.org.ar');
+        $this->app->instance('env', 'production');
+        config(['app.url' => 'https://eventos.huesped.org.ar/aging-panel']);
+        (new AppServiceProvider($this->app))->boot();
+        User::factory()->create(['email' => User::PANEL_EMAIL]);
+        $this->withSession(['_token' => 'proxy-test', 'url.intended' => 'https://aging.huesped.org.ar/aging-panel/panel'])
+            ->post('https://aging.huesped.org.ar/login', ['_token' => 'proxy-test', 'email' => User::PANEL_EMAIL, 'password' => 'password'])
+            ->assertRedirect('https://eventos.huesped.org.ar/aging-panel/panel')
+            ->assertSessionMissing('url.intended');
+        $this->assertAuthenticated();
     }
 
     public function test_untrusted_forwarding_headers_are_ignored(): void
