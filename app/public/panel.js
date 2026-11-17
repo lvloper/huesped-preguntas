@@ -30,6 +30,11 @@
         el.append(heading, text('p', 'question', q.question));
         const footer = text('div', 'card-footer', '');
         const date = new Date(type === 'discarded' ? q.deleted_at : q.created_at); footer.append(text('span', 'date', Number.isNaN(date.getTime()) ? '' : `${type === 'discarded' ? 'Descartada · ' : ''}${date.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`));
+        if (type === 'discarded') {
+            const restore = text('button', 'outline', 'Restablecer'); restore.type = 'button'; restore.dataset.action = 'restore';
+            restore.disabled = busy.has(q.id); restore.onclick = () => mutate(q.id, {}, 'PATCH', '/restore');
+            footer.append(restore);
+        }
         if (type !== 'answered' && type !== 'discarded') {
             const button = text('button', '', ''); button.type = 'button'; button.dataset.action = type === 'received' ? 'select' : 'answer';
             if (type === 'received') { button.textContent = 'Seleccionar'; button.disabled = busy.has(q.id) || pending.has(q.id) || Boolean(q.answered); button.onclick = () => mutate(q.id, { selected: true }); }
@@ -90,11 +95,11 @@
         } catch (error) { report(error.message); $('connection').textContent = 'Esperando conexión'; }
         finally { loading = false; if (start !== version) refresh(); }
     }
-    async function mutate(id, values, method = 'PATCH') {
+    async function mutate(id, values, method = 'PATCH', suffix = '') {
         if (busy.has(id)) return; busy.add(id); version++; render();
         let failure;
         try {
-            await request(`/panel/questions/${id}`, { method, body: JSON.stringify(values) }); report();
+            await request(`/panel/questions/${id}${suffix}`, { method, body: JSON.stringify(values) }); report();
         } catch (error) { failure = error.message; }
         finally { busy.delete(id); version++; await refresh(); render(); if (failure) report(failure); }
     }

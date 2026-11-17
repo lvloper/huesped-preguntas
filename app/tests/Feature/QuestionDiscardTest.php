@@ -19,6 +19,7 @@ class QuestionDiscardTest extends TestCase
 
         $this->getJson('/panel/data?discarded=1')->assertUnauthorized();
         $this->deleteJson('/panel/questions/'.$question->id)->assertUnauthorized();
+        $this->patchJson('/panel/questions/'.$question->id.'/restore')->assertUnauthorized();
 
         $this->assertNotSoftDeleted($question);
     }
@@ -30,6 +31,7 @@ class QuestionDiscardTest extends TestCase
 
         $this->getJson('/panel/data?discarded=1')->assertForbidden();
         $this->deleteJson('/panel/questions/'.$question->id)->assertForbidden();
+        $this->patchJson('/panel/questions/'.$question->id.'/restore')->assertForbidden();
 
         $this->assertNotSoftDeleted($question);
     }
@@ -186,6 +188,64 @@ class QuestionDiscardTest extends TestCase
 
         $this->deleteJson('/panel/questions/'.$question->id)->assertNoContent();
         $this->assertSoftDeleted($question);
+    }
+
+    #[TestWith([false, false])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, true])]
+    public function test_restoring_a_discarded_question_returns_it_to_received(bool $selected, bool $answered): void
+    {
+        $question = $this->createQuestion();
+        $question->update(['selected' => $selected, 'answered' => $answered]);
+        $question->delete();
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->patchJson('/panel/questions/'.$question->id.'/restore', ['name' => 'Replaced'])->assertNoContent()
+            ->assertHeader('Cache-Control', 'no-store, private');
+
+        $this->assertNotSoftDeleted($question);
+        $this->assertDatabaseHas('questions', ['id' => $question->id, 'name' => $question->name, 'email' => $question->email, 'question' => $question->question, 'selected' => false, 'answered' => false]);
+        $this->getJson('/panel/data')->assertOk()
+            ->assertJsonPath('received.data.0.id', $question->id)
+            ->assertJsonCount(0, 'selected')->assertJsonPath('discarded_count', 0);
+        $this->getJson('/panel/data?discarded=1')->assertOk()->assertJsonCount(0, 'discarded.data');
+        $this->getJson('/panel/data?answered=1')->assertOk()->assertJsonCount(0, 'answered.data');
+    }
+
+    public function test_restore_rejects_active_and_permanently_removed_questions(): void
+    {
+        $active = $this->createQuestion();
+        $removed = $this->createQuestion();
+        $removed->forceDelete();
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->patchJson('/panel/questions/'.$active->id.'/restore')->assertNotFound();
+        $this->patchJson('/panel/questions/'.$removed->id.'/restore')->assertNotFound();
+
+        $this->assertNotSoftDeleted($active);
+        $this->assertDatabaseMissing('questions', ['id' => $removed->id]);
+    }
+
+    public function test_restore_waits_for_an_in_progress_discard_and_can_be_retried(): void
+    {
+        $question = $this->createQuestion();
+        $question->delete();
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+        $lock = Cache::lock('questions:discard', 15);
+        $lock->get();
+
+        try {
+            $this->patchJson('/panel/questions/'.$question->id.'/restore')
+                ->assertTooManyRequests()->assertHeader('Retry-After', '1');
+            $this->assertSoftDeleted($question);
+        } finally {
+            $lock->release();
+        }
+
+        $this->patchJson('/panel/questions/'.$question->id.'/restore')->assertNoContent();
+        $this->assertNotSoftDeleted($question);
+        $this->patchJson('/panel/questions/'.$question->id.'/restore')->assertNotFound();
     }
 
     private function createQuestion(): Question

@@ -83,7 +83,12 @@
   const hasUid = params.has('uid');
   const uids = params.getAll('uid');
   const uid = uids.length === 1 ? uids[0].trim() : '';
-  for (const field of ['name', 'email']) form.elements[field].readOnly = hasUid;
+  root.querySelector('.aq-fields').hidden = hasUid;
+  for (const field of ['name', 'email']) {
+    form.elements[field].readOnly = hasUid;
+    form.elements[field].disabled = hasUid;
+  }
+  if (hasUid) root.querySelector('.aq-help').textContent = 'La pregunta es obligatoria.';
   if (!hasUid) {
     for (const [parameter, field, limit] of [['aging_nombre', 'name', 150], ['aging_email', 'email', 255]]) {
       const values = params.getAll(parameter);
@@ -140,7 +145,8 @@
       form.elements.name.value = data.name;
       form.elements.email.value = data.email;
       resolvedUid = uid; identityReady = true;
-      identityStatus.textContent = 'Tus datos ya están cargados.';
+      identityStatus.textContent = '';
+      identityStatus.hidden = true;
       startVerification();
     } catch (_) {
       identityStatus.textContent = 'No pudimos cargar tus datos. Revisá tu conexión y reintentá.';

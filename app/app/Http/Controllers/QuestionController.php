@@ -87,6 +87,26 @@ class QuestionController extends Controller
         return response()->json($question)->header('Cache-Control', 'no-store');
     }
 
+    public function restore(Question $question): Response|JsonResponse
+    {
+        $lock = Cache::lock('questions:discard', 15);
+        if (! $lock->get()) {
+            return response()->json(['message' => 'Hay una actualización en curso. Intentá nuevamente.'], 429)->header('Retry-After', '1');
+        }
+
+        try {
+            DB::transaction(function () use ($question): void {
+                $discarded = Question::onlyTrashed()->whereKey($question->id)->lockForUpdate()->firstOrFail();
+                $discarded->fill(['selected' => false, 'answered' => false]);
+                $discarded->restore();
+            });
+
+            return response()->noContent()->header('Cache-Control', 'no-store');
+        } finally {
+            $lock->release();
+        }
+    }
+
     public function destroy(Question $question): Response|JsonResponse
     {
         $lock = Cache::lock('questions:discard', 15);
