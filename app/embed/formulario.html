@@ -65,7 +65,7 @@
     <textarea id="aq-body" name="body" maxlength="5000" required aria-describedby="aq-help"></textarea>
     <span id="aq-help" class="aq-help">Todos los campos son obligatorios.</span>
     <div class="aq-turnstile"></div>
-    <button type="button" class="aq-retry" hidden>Reintentar verificación</button>
+    <button type="button" class="aq-retry aq-verification-retry" hidden>Reintentar verificación</button>
     <div class="aq-actions"><button type="submit" disabled>Enviar pregunta</button><span class="aq-countdown" role="timer" aria-live="off"></span></div>
     <p class="aq-message" role="status" aria-live="polite" aria-atomic="true"></p>
   </form>
@@ -84,7 +84,8 @@
   const uids = params.getAll('uid');
   const uid = uids.length === 1 ? uids[0].trim() : '';
   for (const field of ['name', 'email']) form.elements[field].readOnly = hasUid;
-  if (!hasUid) for (const [parameter, field, limit] of [['aging_nombre', 'name', 150], ['aging_email', 'email', 255]]) {
+  if (!hasUid) {
+    for (const [parameter, field, limit] of [['aging_nombre', 'name', 150], ['aging_email', 'email', 255]]) {
     const values = params.getAll(parameter);
     if (values.length !== 1) continue;
     const value = values[0].trim();
@@ -92,10 +93,11 @@
     const input = form.elements[field];
     input.value = value;
     if (!input.checkValidity()) input.value = '';
+    }
   }
   const body = form.elements.body;
   const submit = form.querySelector('[type="submit"]');
-  const retry = root.querySelector('.aq-retry');
+  const retry = root.querySelector('.aq-verification-retry');
   const status = root.querySelector('.aq-message');
   const countdown = root.querySelector('.aq-countdown');
   const container = root.querySelector('.aq-turnstile');
