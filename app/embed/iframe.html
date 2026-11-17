@@ -1,0 +1,18 @@
+<!-- Pegar una vez en un bloque HTML personalizado de WordPress. -->
+<iframe id="aging-question-frame" src="https://aging.huesped.org.ar/formulario" title="Hacé tu pregunta al equipo del encuentro" width="720" height="820" style="display:block;width:100%;max-width:720px;margin:24px auto;border:0;background:transparent" loading="lazy"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById('aging-question-frame');
+  const origin = new URL(frame.src).origin;
+  frame.addEventListener('load', () => {
+    frame.contentWindow.postMessage({ type: 'aging-question:measure' }, origin);
+  });
+  window.addEventListener('message', event => {
+    if (event.origin !== origin || event.source !== frame.contentWindow || event.data?.type !== 'aging-question:resize') return;
+    const height = event.data.height;
+    if (typeof height === 'number' && Number.isFinite(height) && height > 0 && height <= 10000) {
+      frame.style.height = `${Math.ceil(height)}px`;
+    }
+  });
+})();
+</script>

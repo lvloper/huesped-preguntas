@@ -22,11 +22,11 @@ Cada pregunta se relaciona con un nombre y un mail.
 3. Mostrar Cloudflare Turnstile recién cuando empieza a escribir la pregunta.
 4. Al enviar, validar en el servidor los datos, Turnstile y el límite de frecuencia antes de aceptar y guardar la pregunta.
 5. Una pregunta aceptada queda disponible para el panel privado.
-6. Después del envío aceptado, bloquear temporalmente el botón e informar cuánto falta para volver a preguntar.
+6. Después del segundo envío aceptado, bloquear el botón durante 30 segundos e informar cuánto falta para volver a preguntar.
 
 ## Límite y respuesta de la interfaz
 
-- Una pregunta cada **30 segundos por persona**.
+- Permitir **dos preguntas consecutivas**; después de la segunda, esperar **30 segundos**. Un primer envío aislado deja de contar a los 30 segundos.
 - El servidor aplica el límite; deshabilitar el botón por sí solo no alcanza.
 - Mostrar el tiempo restante junto al botón, visible también en celulares. No depender solamente de un mensaje al pasar el mouse.
 - Habilitar el envío nuevamente cuando corresponda según el límite del servidor.

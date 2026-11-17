@@ -4,18 +4,26 @@ set -Eeuo pipefail
 umask 027
 
 usage() {
-  printf '%s\n' 'Uso: deploy [deploy|rollback|plan|--help]'
+  printf '%s\n' 'Uso: deploy [deploy [SHA40]|releases|activate ID|rollback|plan|--help]'
 }
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
 }
 
-if (( $# > 1 )); then usage >&2; exit 2; fi
+if (( $# > 2 )); then usage >&2; exit 2; fi
 action="${1:-deploy}"
 case "$action" in
   --help|-h) usage; exit 0 ;;
-  deploy|rollback|plan) ;;
+  deploy)
+    if (( $# == 2 )) && [[ ! "$2" =~ ^[0-9a-f]{40}$ ]]; then fail 'Indicá un SHA completo de 40 caracteres hexadecimales.'; fi
+    ;;
+  activate)
+    [[ $# == 2 && "$2" =~ ^[0-9]+$ ]] || fail 'Indicá un ID numérico de release.'
+    ;;
+  releases|rollback|plan)
+    (( $# <= 1 )) || { usage >&2; exit 2; }
+    ;;
   *) usage >&2; exit 2 ;;
 esac
 
@@ -34,6 +42,10 @@ php_bin="$(<"$php_config")"
 [[ -f "$recipe" && -r "$recipe" ]] || fail 'Falta la receta .deploy-tools/deploy.php.'
 cd -- "$site_dir"
 
+if [[ "$action" = releases ]]; then
+  exec "$php_bin" "$dep_bin" "--file=$recipe" releases production
+fi
+
 if [[ "$action" = plan ]]; then
   exec "$php_bin" "$dep_bin" "--file=$recipe" tree deploy
 fi
@@ -43,4 +55,10 @@ exec 9>"$tools_dir/manual.lock"
 flock -n 9 || fail 'Ya hay un deploy o rollback en curso. Esperá a que termine.'
 # Respetar también operaciones lanzadas directamente con Deployer.
 [[ ! -e "$site_dir/.dep/deploy.lock" ]] || fail 'Existe un bloqueo de Deployer. Verificá el proceso antes de desbloquear.'
+if [[ "$action" = activate ]]; then
+  exec "$php_bin" "$dep_bin" "--file=$recipe" rollback production -o "rollback_candidate=$2"
+fi
+if [[ "$action" = deploy && $# == 2 ]]; then
+  exec "$php_bin" "$dep_bin" "--file=$recipe" deploy production "--revision=$2"
+fi
 exec "$php_bin" "$dep_bin" "--file=$recipe" "$action" production

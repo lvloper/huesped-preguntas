@@ -33,7 +33,7 @@ class AgingTest extends TestCase
 
         $response = $this->postJson('/api/questions', $this->submission());
 
-        $response->assertCreated()->assertJsonPath('retry_after', 30);
+        $response->assertCreated()->assertJsonPath('retry_after', 0);
         $this->assertDatabaseHas('questions', [
             'name' => 'Ana Pérez',
             'email' => 'ana@example.com',
@@ -90,19 +90,59 @@ class AgingTest extends TestCase
         $this->assertDatabaseCount('questions', 0);
     }
 
-    public function test_repeated_submission_returns_429_until_cooldown_expires(): void
+    public function test_third_submission_returns_429_until_cooldown_expires(): void
+    {
+        $this->freezeTime();
+        $this->useTrustedIdentity();
+        $this->postJson('/api/questions', $this->submission())
+            ->assertCreated()->assertJsonPath('retry_after', 0);
+        $this->postJson('/api/questions', $this->submission())
+            ->assertCreated()->assertJsonPath('retry_after', 30);
+
+        $this->postJson('/api/questions', $this->submission())
+            ->assertStatus(429)
+            ->assertHeader('Retry-After', '30')
+            ->assertJsonPath('retry_after', 30);
+
+        $this->assertDatabaseCount('questions', 2);
+        $this->travel(29)->seconds();
+        $this->postJson('/api/questions', $this->submission())
+            ->assertStatus(429)->assertJsonPath('retry_after', 1);
+        $this->assertDatabaseCount('questions', 2);
+
+        $this->travel(1)->seconds();
+        $this->postJson('/api/questions', $this->submission())
+            ->assertCreated()->assertJsonPath('retry_after', 0);
+        $this->postJson('/api/questions', $this->submission())
+            ->assertCreated()->assertJsonPath('retry_after', 30);
+        $this->assertDatabaseCount('questions', 4);
+    }
+
+    public function test_cooldown_lasts_30_seconds_after_the_second_accepted_submission(): void
     {
         $this->freezeTime();
         $this->useTrustedIdentity();
         $this->postJson('/api/questions', $this->submission())->assertCreated();
 
+        $this->travel(20)->seconds();
         $this->postJson('/api/questions', $this->submission())
-            ->assertStatus(429)
-            ->assertJsonPath('retry_after', 30);
+            ->assertCreated()->assertJsonPath('retry_after', 30);
 
-        $this->assertDatabaseCount('questions', 1);
-        $this->travel(31)->seconds();
+        $this->travel(10)->seconds();
+        $this->postJson('/api/questions', $this->submission())
+            ->assertStatus(429)->assertJsonPath('retry_after', 20);
+        $this->assertDatabaseCount('questions', 2);
+    }
+
+    public function test_a_single_submission_expires_after_30_seconds_without_starting_a_cooldown(): void
+    {
+        $this->freezeTime();
+        $this->useTrustedIdentity();
         $this->postJson('/api/questions', $this->submission())->assertCreated();
+
+        $this->travel(31)->seconds();
+        $this->postJson('/api/questions', $this->submission())
+            ->assertCreated()->assertJsonPath('retry_after', 0);
         $this->assertDatabaseCount('questions', 2);
     }
 
@@ -233,9 +273,10 @@ class AgingTest extends TestCase
     {
         Http::fake(['*' => Http::response(['success' => true, 'hostname' => 'eventos.huesped.org.ar', 'action' => 'question'])]);
         $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1'])->postJson('/api/questions', $this->submission())->assertCreated();
-        $this->withHeader('X-Forwarded-For', '192.0.2.99')->postJson('/api/questions', [...$this->submission(), 'email' => 'other@example.com'])->assertStatus(429);
+        $this->withHeader('X-Forwarded-For', '192.0.2.99')->postJson('/api/questions', [...$this->submission(), 'email' => 'other@example.com'])->assertCreated();
+        $this->withHeader('X-Forwarded-For', '192.0.2.100')->postJson('/api/questions', [...$this->submission(), 'email' => 'third@example.com'])->assertStatus(429);
         $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.2'])->postJson('/api/questions', $this->submission())->assertCreated();
-        $this->assertDatabaseCount('questions', 2);
+        $this->assertDatabaseCount('questions', 3);
     }
 
     public function test_dummy_turnstile_key_is_rejected_outside_local(): void

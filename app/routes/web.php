@@ -17,6 +17,7 @@ Route::middleware(['auth', 'can:access-panel'])->group(function () {
     Route::view('/panel', 'panel')->name('dashboard');
     Route::get('/panel/data', [QuestionController::class, 'index']);
     Route::patch('/panel/questions/{question}', [QuestionController::class, 'update']);
+    Route::delete('/panel/questions/{question}', [QuestionController::class, 'destroy']);
 });
 require __DIR__.'/auth.php';
 

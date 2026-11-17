@@ -77,7 +77,7 @@ Para rotar la clave, cambiar sólo STATUS_CHECK_KEY en el .env privado, reconstr
 
 PHP CLI/FPM 8.5.12, Composer privado 2.11.2, Deployer 8.0.5 y Node 22.23.5. Dependencias de la aplicación desde locks. No se usa administrador, sudo, runners ni workers residentes. El repositorio público se obtiene por HTTPS sin una credencial GitHub.
 
-SQLite, sesiones, caché, límites de envío, uploads y APP_KEY son persistentes en shared. Antes de cada migración se guarda un backup consistente de SQLite en `shared/database/backups/before-release-N.sqlite`. No se subieron usuarios ni preguntas de prueba locales. El acceso autorizado existente de `debora.fiore@huesped.org.ar` se conserva.
+Producción usa MySQL desde el 17/11/2026; las credenciales quedan sólo en shared/.env. Se transfirieron y compararon por contenido las diez tablas, incluido el usuario, la pregunta y 14 sesiones presentes al corte. SQLite se conserva como respaldo histórico y ya no recibe las escrituras de producción. Sesiones, caché y límites usan la base configurada; uploads y APP_KEY se conservan. Antes de cada migración, app:backup detecta la conexión activa: para MySQL genera un dump privado transaccional en `shared/database/backups/before-release-N.sql`, con SHA-256 y credenciales temporales en un archivo privado que retira al terminar; para SQLite conserva su respaldo nativo. Se generó un primer dump MySQL y se comprobó la salida correcta, sin ensayar una restauración de producción. El respaldo del corte está en `shared/database/backups/mysql-cutover-20261117-152324/`; el entorno anterior sólo sirve para recuperación coordinada antes de nuevas escrituras: no restaurarlo ciegamente después del corte. No se subieron usuarios ni preguntas de prueba locales. El acceso autorizado existente de `debora.fiore@huesped.org.ar` se conserva.
 
 La raíz pública configurada en CloudPanel resuelve a current/public mediante un enlace del usuario del sitio. La página inicial se preservó. Vistas compiladas separadas por release; assets de las dos versiones anteriores conservados para páginas abiertas. Revisar compatibilidad de migraciones futuras; no se promete continuidad bajo carga.
 
@@ -99,3 +99,25 @@ Las copias sin secretos de receta y wrapper están en `deploy-cloudpanel.php` y 
 ## Skill actualizada
 
 La copia instalada de ac-deploy-cp usa por defecto estado HTTPS con clave, sin cron. Valida SSH primero, descubre los datos disponibles y continúa el montaje de corrido con credenciales válidas. Incorpora los hallazgos comprobados de CloudPanel, Deployer y WAF; no conserva contraseñas ni datos específicos de este sitio como instrucciones generales. El modo avanzado con cron se conserva únicamente como opción explícita. Se validaron frontmatter, metadatos YAML, referencias y coherencia del modo reducido.
+
+## Probar una revisión y cambiar de release
+
+Actualmente sólo está configurado el host production; el wrapper admite deploy (main o SHA completo), releases, activate ID, plan y rollback. No hay URL/host test configurado todavía. La skill solicita la URL de prueba y exige base, storage, sesiones, configuración y bloqueos separados antes de habilitarla. La URL sugerida es test.aging.huesped.org.ar, pendiente de elección, DNS/TLS y sitio en CloudPanel. No apuntar una copia de prueba a la base viva.
+
+Una revisión Git (SHA/tag) identifica el código; una release (1, 2, 3...) es una construcción local. Deployer 8 instalado admite `deploy --revision=SHA`; para probarla debe usarse una receta/host de test separado, todavía pendiente de configurar. Después se publica la misma revisión aprobada en producción; reconstruir desde el mismo SHA no equivale a promover el mismo artefacto.
+
+Comandos existentes, ejecutados por SSH como usuario del sitio:
+
+```bash
+cd ~/htdocs/aging.huesped.org.ar
+./deploy plan
+./deploy
+./deploy rollback
+./deploy releases
+# Publicar una revisión Git concreta (sustituir SHA_COMPLETO por 40 caracteres):
+./deploy deploy SHA_COMPLETO
+# Activar una release retenida, previa comprobación de compatibilidad:
+./deploy activate ID
+```
+
+El rollback elige el candidato anterior bueno. El wrapper `./deploy activate ID` selecciona una release retenida usando la tarea de rollback con candidato explícito y los mismos bloqueos; comprobar antes compatibilidad de esquema, revisión y estado de esa release. No se ensayó una selección en producción para documentarla. Cambiar release no restaura la base, .env ni uploads. El wrapper aún no ofrece test ni promote: esos comandos son el contrato propuesto en la skill y requieren implementación por ambiente.

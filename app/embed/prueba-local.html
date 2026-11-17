@@ -1,7 +1,53 @@
 <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aging · Prueba local</title><body><p style="text-align:center">PRUEBA LOCAL · Turnstile de prueba · <a href="/panel" target="_blank">Abrir panel</a></p><!-- Pegar una vez en un bloque HTML personalizado de WordPress. Configurar las dos constantes. -->
 <style>
-#aging-question{--aq-purple:#672f63;--aq-red:#e73c4e;box-sizing:border-box;max-width:720px;margin:24px auto;padding:clamp(20px,5vw,40px);border:1px solid #e7dce7;border-radius:16px;background:#fff;color:#424242;font:16px/1.6 'Poppins',Arial,sans-serif;text-align:left}
-#aging-question *{box-sizing:border-box}#aging-question h2{margin:0 0 8px;color:var(--aq-purple);font:700 clamp(25px,5vw,34px)/1.2 'Poppins',Arial,sans-serif}#aging-question p{margin:0 0 24px}#aging-question label{display:block;font-weight:600;margin:16px 0 6px}#aging-question input,#aging-question textarea{display:block;width:100%;padding:12px 14px;border:1px solid #887b88;border-radius:7px;background:#fff;color:#303030;font:inherit}#aging-question textarea{resize:vertical;min-height:150px}#aging-question :focus-visible{outline:3px solid var(--aq-purple);outline-offset:3px}#aging-question .aq-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}#aging-question .aq-turnstile{margin-top:20px;min-width:0}#aging-question .aq-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px}#aging-question button{min-height:48px;padding:12px 24px;border:0;border-radius:24px;background:var(--aq-red);color:#fff;font:600 16px/1.4 'Poppins',Arial,sans-serif;cursor:pointer}#aging-question button:disabled{background:#746574;cursor:not-allowed}#aging-question .aq-help{display:block;margin-top:8px;font-size:14px}#aging-question .aq-message{margin:16px 0 0;white-space:pre-line;overflow-wrap:anywhere}#aging-question .aq-message[data-kind=error]{color:#a0182a}#aging-question .aq-message[data-kind=success]{color:#27603b}#aging-question .aq-retry{background:transparent;color:var(--aq-purple);border:1px solid currentColor;margin-top:12px}#aging-question [hidden]{display:none!important}@media(max-width:520px){#aging-question .aq-fields{grid-template-columns:1fr;gap:0}#aging-question .aq-actions{align-items:stretch;flex-direction:column}#aging-question .aq-actions button{width:100%}}
+#aging-question {
+  --aq-purple: #672f63;
+  --aq-red: #e73c4e;
+  box-sizing: border-box;
+  container: aging-form / inline-size;
+  width: 100%;
+  min-width: 0;
+  max-width: 720px;
+  margin: 24px auto;
+  padding: clamp(16px, 4vw, 40px);
+  border: 1px solid #e7dce7;
+  border-radius: 16px;
+  background: #fff;
+  color: #424242;
+  font: 16px/1.6 'Poppins', Arial, sans-serif;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+#aging-question *, #aging-question *::before, #aging-question *::after { box-sizing: border-box; }
+#aging-question h2 { margin: 0 0 8px; color: var(--aq-purple); font: 700 clamp(25px, 5vw, 34px)/1.2 'Poppins', Arial, sans-serif; }
+#aging-question p { margin: 0 0 20px; }
+#aging-question form, #aging-question .aq-fields > div { min-width: 0; margin: 0; }
+#aging-question label { display: block; font-weight: 600; margin: 16px 0 6px; }
+#aging-question input, #aging-question textarea { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid #887b88; border-radius: 7px; background: #fff; color: #303030; font: inherit; font-size: 16px; }
+#aging-question textarea { resize: vertical; min-height: 140px; }
+#aging-question :focus-visible { outline: 3px solid var(--aq-purple); outline-offset: 3px; }
+#aging-question .aq-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0 16px; }
+#aging-question .aq-turnstile { margin-top: 16px; min-width: 0; }
+#aging-question .aq-turnstile:empty { margin-top: 0; }
+#aging-question .aq-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+#aging-question button { min-width: 0; max-width: 100%; min-height: 48px; padding: 12px 24px; border: 0; border-radius: 24px; background: var(--aq-red); color: #fff; font: 600 16px/1.4 'Poppins', Arial, sans-serif; white-space: normal; cursor: pointer; }
+#aging-question button:disabled { background: #746574; cursor: not-allowed; }
+#aging-question .aq-help { display: block; margin-top: 8px; font-size: 14px; }
+#aging-question .aq-countdown { font-size: 14px; }
+#aging-question .aq-message { margin: 16px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+#aging-question .aq-message:empty, #aging-question .aq-countdown:empty { display: none; }
+#aging-question .aq-message[data-kind=error] { color: #a0182a; }
+#aging-question .aq-message[data-kind=success] { color: #27603b; }
+#aging-question .aq-retry { background: transparent; color: var(--aq-purple); border: 1px solid currentColor; margin-top: 12px; }
+#aging-question [hidden] { display: none !important; }
+@container aging-form (max-width: 460px) {
+  #aging-question .aq-actions { align-items: stretch; flex-direction: column; }
+  #aging-question .aq-actions button { width: 100%; }
+}
+@media (max-width: 520px) {
+  #aging-question .aq-actions { align-items: stretch; flex-direction: column; }
+  #aging-question .aq-actions button { width: 100%; }
+}
 </style>
 <section id="aging-question" aria-labelledby="aq-heading">
   <h2 id="aq-heading">Hacé tu pregunta</h2>
@@ -13,7 +59,7 @@
     </div>
     <label for="aq-body">Tu pregunta</label>
     <textarea id="aq-body" name="body" maxlength="5000" required aria-describedby="aq-help"></textarea>
-    <span id="aq-help" class="aq-help">Todos los campos son obligatorios. Podés enviar una pregunta cada 30 segundos.</span>
+    <span id="aq-help" class="aq-help">Todos los campos son obligatorios.</span>
     <div class="aq-turnstile"></div>
     <button type="button" class="aq-retry" hidden>Reintentar verificación</button>
     <div class="aq-actions"><button type="submit" disabled>Enviar pregunta</button><span class="aq-countdown" role="timer" aria-live="off"></span></div>
@@ -45,7 +91,7 @@
   const status = root.querySelector('.aq-message');
   const countdown = root.querySelector('.aq-countdown');
   const container = root.querySelector('.aq-turnstile');
-  let token = '', widgetId = null, loading = false, sending = false, until = 0;
+  let token = '', widgetId = null, widgetSize = '', loading = false, sending = false, until = 0;
   const configured = BACKEND_URL !== 'BACKEND_URL' && TURNSTILE_SITEKEY !== 'TURNSTILE_SITEKEY';
   function message(text, kind = '') { status.textContent = text; status.dataset.kind = kind; }
   function update() {
@@ -64,13 +110,14 @@
   }
   function render() {
     if (widgetId !== null || !window.turnstile || !body.value.trim()) return;
+    widgetSize = container.clientWidth < 300 ? 'compact' : 'flexible';
     try {
       widgetId = window.turnstile.render(container, {
-        sitekey: TURNSTILE_SITEKEY, action: 'question', language: 'es', size: 'flexible',
+        sitekey: TURNSTILE_SITEKEY, action: 'question', language: 'es', size: widgetSize,
         'response-field': false,
         callback(value) { token = value; retry.hidden = true; update(); },
         'expired-callback'() { verificationError('La verificación venció. Volvé a verificar para enviar.'); resetVerification(); },
-        'error-callback'() { verificationError('No se pudo completar la verificación. Reintentá.'); return true; },
+        'error-callback'(code) { verificationError('No se pudo completar la verificación. Reintentá.' + (code ? ` Código: ${code}.` : '')); return true; },
         'timeout-callback'() { verificationError('La verificación agotó el tiempo. Reintentá.'); }
       });
     } catch (_) { verificationError('No se pudo iniciar la verificación. Reintentá.'); }
@@ -87,6 +134,14 @@
     script.onerror = () => { loading = false; script.remove(); verificationError('No se pudo cargar la verificación. Revisá tu conexión y reintentá.'); };
     document.head.appendChild(script);
   }
+  function resizeVerification() {
+    const size = container.clientWidth < 300 ? 'compact' : 'flexible';
+    if (widgetId === null || size === widgetSize || sending) return;
+    window.turnstile.remove(widgetId);
+    widgetId = null; token = '';
+    render(); update();
+  }
+  new ResizeObserver(resizeVerification).observe(container);
   body.addEventListener('input', () => { startVerification(); update(); });
   retry.addEventListener('click', () => {
     retry.hidden = true; message('');
@@ -122,7 +177,7 @@
     } catch (_) {
       message('No pudimos confirmar el envío. Revisá tu conexión antes de reintentar; la pregunta podría haberse recibido.', 'error');
     } finally {
-      clearTimeout(timeout); sending = false; resetVerification(); update();
+      clearTimeout(timeout); sending = false; resetVerification(); resizeVerification(); update();
     }
   });
   if (!configured) message('El formulario todavía no está configurado para recibir preguntas.', 'error');

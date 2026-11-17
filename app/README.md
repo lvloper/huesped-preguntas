@@ -14,7 +14,7 @@ El snippet WordPress está en `embed/formulario.html`; instrucciones en `embed/R
 
 ## Configuración pendiente
 
-RateLimiter de Laravel aplica 30 segundos por IP, con bloqueo atómico. La IP no autentica a la persona. El formulario admite precarga editable con `aging_nombre` y `aging_email`; no autentica. Ver contrato en `embed/README.md`. Falta configurar Turnstile; sin secreto la API devuelve 503. Al desplegar se configurarán los proxies confiables según la infraestructura real. Backend local por ahora; futuro destino dentro de huesped.org.
+RateLimiter de Laravel permite dos preguntas consecutivas por IP y aplica una espera de 30 segundos desde la segunda, con bloqueo atómico. La IP no autentica a la persona. El formulario admite precarga editable con `aging_nombre` y `aging_email`; no autentica. Ver contrato en `embed/README.md`. Falta configurar Turnstile; sin secreto la API devuelve 503. Al desplegar se configurarán los proxies confiables según la infraestructura real. Backend local por ahora; futuro destino dentro de huesped.org.
 
 ## Comprobaciones ejecutadas
 

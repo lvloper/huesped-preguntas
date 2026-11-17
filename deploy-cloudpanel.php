@@ -59,28 +59,46 @@ PY;
     run('rm -rf {{release_path}}/node_modules');
 });
 
-desc('Backs up the persistent SQLite database before migrations');
+desc('Backs up the active SQLite or MySQL database before migrations');
 task('app:backup', function (): void {
-    $script = <<<'PY'
-import os
-from pathlib import Path
-import sqlite3
-import sys
-os.umask(0o077)
-root, rid = Path(sys.argv[1]), sys.argv[2]
-directory = root / 'shared/database/backups'
-directory.mkdir(mode=0o700, exist_ok=True)
-destination = directory / ('before-release-' + rid + '.sqlite')
-if destination.exists():
-    raise SystemExit('El respaldo de esta release ya existe; revisar antes de continuar.')
-with sqlite3.connect(root / 'shared/database/database.sqlite', timeout=30) as source:
-    with sqlite3.connect(destination) as backup:
-        source.backup(backup)
-        if backup.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
-            raise SystemExit('El respaldo no superó la comprobación de integridad.')
-print('Respaldo SQLite privado comprobado.')
-PY;
-    run('/usr/bin/python3 -c '.escapeshellarg($script).' {{deploy_path}} {{release_name}}');
+    $script = <<<'PHP'
+$root=$argv[1];$rid=$argv[2];
+if(!preg_match('/\A[a-zA-Z0-9_-]+\z/',$rid)){throw new RuntimeException('Identificador de respaldo inválido.');}
+umask(0077);
+require "$root/current/vendor/autoload.php";
+$app=require "$root/current/bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$db=Illuminate\Support\Facades\DB::connection();
+$cfg=$db->getConfig();$driver=$db->getDriverName();
+$dir="$root/shared/database/backups";
+if(!is_dir($dir)&&!mkdir($dir,0700,true)){throw new RuntimeException('No se pudo preparar carpeta privada.');}
+if($driver==='sqlite'){
+    $dst="$dir/before-release-$rid.sqlite";
+    if(file_exists($dst)){throw new RuntimeException('Ya existe este respaldo; revisar.');}
+    $py='import sqlite3,sys; s=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True); d=sqlite3.connect(sys.argv[2]); s.backup(d); assert d.execute("PRAGMA integrity_check").fetchone()[0]=="ok"; d.close(); s.close()';
+    (new Symfony\Component\Process\Process(['/usr/bin/python3','-c',$py,$db->getDatabaseName(),$dst]))->setTimeout(600)->mustRun();
+}elseif($driver==='mysql'){
+    $dst="$dir/before-release-$rid.sql";
+    if(file_exists($dst)||file_exists($dst.'.partial')){throw new RuntimeException('Ya existe este respaldo; revisar.');}
+    $optionFile=tempnam($dir,'.mysql-');chmod($optionFile,0600);
+    $escape=fn($v)=>'"'.strtr((string)$v,['\\'=>'\\\\','"'=>'\\"',"\n"=>'\\n',"\r"=>'\\r']).'"';
+    try{
+        $options="[client]\n";
+        foreach(['host','port','username','password','unix_socket'] as $key){
+            $name=match($key){'username'=>'user','unix_socket'=>'socket',default=>$key};
+            if(isset($cfg[$key])&&$cfg[$key]!==''){$options.=$name.'='.$escape($cfg[$key])."\n";}
+        }
+        file_put_contents($optionFile,$options);
+        (new Symfony\Component\Process\Process(['/usr/bin/mysqldump','--defaults-extra-file='.$optionFile,'--single-transaction','--skip-lock-tables','--no-tablespaces','--set-gtid-purged=OFF','--result-file='.$dst.'.partial',$cfg['database']]))->setTimeout(600)->mustRun();
+        if(!is_file($dst.'.partial')||filesize($dst.'.partial')===0){throw new RuntimeException('Respaldo MySQL vacío.');}
+        rename($dst.'.partial',$dst);
+    }finally{if(is_file($optionFile)){unlink($optionFile);}}
+}else{throw new RuntimeException('Motor sin estrategia de respaldo definida.');}
+chmod($dst,0600);
+file_put_contents($dst.'.sha256',hash_file('sha256',$dst).'  '.basename($dst)."\n");
+echo 'Respaldo privado '.$driver.' terminado: '.basename($dst)."\n";
+PHP;
+    run('{{bin/php}} -r '.escapeshellarg($script).' {{deploy_path}} {{release_name}}');
 });
 
 desc('Migrates the candidate and prepares its caches');

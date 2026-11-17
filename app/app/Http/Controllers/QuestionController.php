@@ -7,7 +7,9 @@ use App\Services\SubmissionIdentity;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -35,14 +37,17 @@ class QuestionController extends Controller
             return response()->json(['message' => 'Hay un envío en curso.', 'retry_after' => 1], 429)->header('Retry-After', '1');
         }
         try {
-            $remaining = RateLimiter::availableIn($cacheKey);
-            if ($remaining > 0) {
+            if (RateLimiter::tooManyAttempts($cacheKey, 2)) {
+                $remaining = RateLimiter::availableIn($cacheKey);
+
                 return response()->json(['message' => 'Esperá antes de volver a preguntar.', 'retry_after' => $remaining], 429)->header('Retry-After', (string) $remaining);
             }
             Question::create(collect($data)->only(['name', 'email', 'question'])->all());
-            RateLimiter::hit($cacheKey, 30);
+            $attempts = RateLimiter::attempts($cacheKey) + 1;
+            RateLimiter::clear($cacheKey);
+            RateLimiter::increment($cacheKey, 30, $attempts);
 
-            return response()->json(['message' => 'Pregunta enviada.', 'retry_after' => 30], 201);
+            return response()->json(['message' => 'Pregunta enviada.', 'retry_after' => $attempts >= 2 ? 30 : 0], 201);
         } finally {
             $lock->release();
         }
@@ -50,11 +55,15 @@ class QuestionController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        if ($request->boolean('discarded')) {
+            return response()->json(['discarded' => Question::onlyTrashed()->orderByDesc('deleted_at')->orderByDesc('id')->paginate(20)])->header('Cache-Control', 'no-store');
+        }
+
         if ($request->boolean('answered')) {
             return response()->json(['answered' => Question::where('answered', true)->orderByDesc('id')->paginate(20)])->header('Cache-Control', 'no-store');
         }
 
-        return response()->json(['received' => Question::orderBy('id')->paginate(20), 'selected' => Question::where('selected', true)->where('answered', false)->orderBy('id')->get()])->header('Cache-Control', 'no-store');
+        return response()->json(['received' => Question::orderBy('id')->paginate(20), 'selected' => Question::where('selected', true)->where('answered', false)->orderBy('id')->get(), 'discarded_count' => Question::onlyTrashed()->count()])->header('Cache-Control', 'no-store');
     }
 
     public function update(Request $request, Question $question): JsonResponse
@@ -63,5 +72,28 @@ class QuestionController extends Controller
         $question->update($data);
 
         return response()->json($question)->header('Cache-Control', 'no-store');
+    }
+
+    public function destroy(Question $question): Response|JsonResponse
+    {
+        $lock = Cache::lock('questions:discard', 15);
+        if (! $lock->get()) {
+            return response()->json(['message' => 'Hay un descarte en curso. Intentá nuevamente.'], 429)->header('Retry-After', '1');
+        }
+
+        try {
+            DB::transaction(function () use ($question): void {
+                $question->delete();
+                $excess = Question::onlyTrashed()->count() - 100;
+                if ($excess > 0) {
+                    $expiredIds = Question::onlyTrashed()->orderBy('deleted_at')->orderBy('id')->limit($excess)->pluck('id');
+                    Question::onlyTrashed()->whereKey($expiredIds)->forceDelete();
+                }
+            });
+
+            return response()->noContent()->header('Cache-Control', 'no-store');
+        } finally {
+            $lock->release();
+        }
     }
 }

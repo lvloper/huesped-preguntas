@@ -6,6 +6,12 @@ Antes de publicarlo, reemplazar las constantes `BACKEND_URL` (origen HTTPS de La
 
 El diseño toma el violeta `#672f63`, rojo `#e73c4e` y la tipografía Poppins del sitio de referencia. Hereda Poppins si está cargada; tiene fallback Arial y CSS acotado al contenedor. No modifica el sitio de referencia ni incorpora fuentes o dependencias adicionales.
 
+## Integración mediante iframe
+
+Para mostrar la página pública `/formulario` en WordPress, copiar `iframe.html` completo. El iframe ocupa el ancho disponible y el script ajusta su altura al contenido, incluidos Turnstile, errores y cuenta regresiva. Verifica el origen y la ventana del mensaje antes de ajustar la altura. Si el editor elimina el script, el contenido sigue accesible con desplazamiento dentro del iframe.
+
+El formulario adapta los campos y el botón al ancho de su contenedor. Turnstile usa tamaño compacto cuando el espacio disponible es menor a 300 px, también al girar el teléfono o cambiar el tamaño del iframe.
+
 ## Contrato HTTP
 
 El navegador envía `POST BACKEND_URL/api/questions`, con `Content-Type: application/json`, `Accept: application/json`, sin cookies, y estos campos:
@@ -14,7 +20,7 @@ El navegador envía `POST BACKEND_URL/api/questions`, con `Content-Type: applica
 {"name":"Nombre","email":"persona@example.org","question":"Pregunta","cf-turnstile-response":"token"}
 ```
 
-- `201`: pregunta guardada; JSON con `retry_after` numérico en segundos. Solo este estado muestra éxito y vacía la pregunta.
+- `201`: pregunta guardada; JSON con `retry_after` numérico en segundos: `0` tras el primer envío y `30` tras el segundo. Solo este estado muestra éxito y vacía la pregunta.
 - `429`: pregunta rechazada por frecuencia; JSON con `retry_after` numérico en segundos. Conserva los campos y muestra cuenta regresiva visible junto al botón, también en móvil.
 - `422`: validación rechazada; admite el objeto `errors` de Laravel (arrays de mensajes). Conserva los campos.
 - Otros estados, JSON inválido o problemas de conexión: no muestran éxito. Una interrupción puede ocurrir después de que el servidor guardó la pregunta, por lo que se informa que no se pudo confirmar el envío.
@@ -25,11 +31,11 @@ El backend debe devolver siempre `retry_after` válido en `201` y `429`; la inte
 
 Turnstile se carga y renderiza explícitamente al comenzar a escribir la pregunta, con acción `question`. Guarda el ID y reinicia el widget después de cada intento HTTP, incluidos errores, ya que cada token es de un solo uso. Maneja expiración, timeout, fallo de carga y reintento. El backend debe validar Siteverify, acción `question` y hostname autorizado antes de guardar; la clave secreta queda en Laravel. Referencia: https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/.
 
-Nombre y email son datos declarados, sin autenticación. El snippet precarga parámetros de enlace según el contrato siguiente, sin autenticar a la persona. El límite acordado es de una pregunta cada 30 segundos por IP. El servidor debe aplicar el límite; la cuenta regresiva es solo una indicación de su respuesta.
+Nombre y email son datos declarados, sin autenticación. El snippet precarga parámetros de enlace según el contrato siguiente, sin autenticar a la persona. Se permiten dos preguntas consecutivas por IP; después del segundo envío aceptado comienza una espera de 30 segundos. Un primer envío aislado deja de contar después de 30 segundos. El servidor debe aplicar el límite; la cuenta regresiva es solo una indicación de su respuesta.
 
 ## Verificación de integración pendiente
 
-Con URL y claves reales, probar desde WordPress: aceptación 201, rechazo 429 con espera, validación 422, token expirado/inválido/reutilizado, caída de red, y vista móvil a 320 px. Verificar que solo una pregunta aceptada se guarda y que el servidor rechaza el segundo envío dentro del límite. Las pruebas locales con mocks no demuestran la configuración real de Turnstile, CORS ni la política de identidad.
+Con URL y claves reales, probar desde WordPress: aceptación 201, rechazo 429 con espera, validación 422, token expirado/inválido/reutilizado, caída de red, y vista móvil a 320 px. Verificar que se guardan los dos primeros envíos, que el tercero se rechaza durante la espera y que al cumplirse los 30 segundos se permiten dos envíos nuevos. Las pruebas locales con mocks no demuestran la configuración real de Turnstile, CORS ni la política de identidad.
 
 ## Parámetros de enlace acordados
 

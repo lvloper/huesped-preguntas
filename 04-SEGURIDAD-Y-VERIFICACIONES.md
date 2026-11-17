@@ -6,7 +6,7 @@
 - Configurar CORS para permitir ese origen.
 - Configurar Cloudflare Turnstile para el dominio del formulario y validar su resultado en Laravel antes de aceptar la pregunta.
 - La clave secreta de Turnstile permanece en el servidor, nunca dentro del HTML o JavaScript embebido.
-- Aplicar el límite de una pregunta por persona cada 30 segundos en el servidor y reflejarlo en la interfaz.
+- Permitir dos preguntas consecutivas y aplicar una espera de 30 segundos desde la segunda en el servidor; reflejar la espera en la interfaz.
 - Proteger el panel de preguntas con inicio de sesión.
 
 **Límite conocido:** CORS no autentica el origen de todas las solicitudes ni garantiza que nadie envíe desde fuera de esa página. El usuario aceptó el enfoque de CORS, Turnstile y rate limit para esta campaña breve, con esa limitación explícita.
@@ -26,7 +26,7 @@ No restringir los envíos a la IP del servidor WordPress: en el flujo elegido en
 - Nombre, mail y pregunta quedan asociados y guardados cuando el envío se acepta.
 - El fallback manual no se presenta como autenticación verificada.
 - Turnstile aparece al escribir y se verifica en servidor; un resultado inválido no permite aceptar la pregunta.
-- Un segundo envío dentro de los 30 segundos se rechaza en servidor y muestra la espera restante.
+- Los dos primeros envíos se aceptan; un tercero durante los 30 segundos posteriores al segundo se rechaza en servidor y muestra la espera restante.
 - La espera se entiende y se ve en móvil.
 - Sin login no se puede acceder al panel ni leer sus datos privados.
 - Seleccionar una recibida la incorpora a la columna derecha.
