@@ -8,7 +8,7 @@ El diseño toma el violeta `#672f63`, rojo `#e73c4e` y la tipografía Poppins de
 
 ## Integración mediante iframe
 
-Para mostrar la página pública `/formulario` en WordPress, copiar `iframe.html` completo. El iframe ocupa el ancho disponible y el script ajusta su altura al contenido, incluidos Turnstile, errores y cuenta regresiva. Verifica el origen y la ventana del mensaje antes de ajustar la altura. Si el editor elimina el script, el contenido sigue accesible con desplazamiento dentro del iframe.
+Para mostrar la página pública `/formulario` en WordPress, copiar `iframe.html` completo. Si la página de WordPress recibe `?uid=...`, el script copia ese parámetro al `src` del iframe, conservando los demás parámetros de su URL. El iframe ocupa el ancho disponible y el script ajusta su altura al contenido, incluidos Turnstile, errores y cuenta regresiva. Verifica el origen y la ventana del mensaje antes de ajustar la altura. Si el editor elimina el script, el contenido sigue accesible con desplazamiento dentro del iframe.
 
 El formulario adapta los campos y el botón al ancho de su contenedor. Turnstile usa tamaño compacto cuando el espacio disponible es menor a 300 px, también al girar el teléfono o cambiar el tamaño del iframe.
 
@@ -37,9 +37,24 @@ Nombre y email son datos declarados, sin autenticación. El snippet precarga par
 
 Con URL y claves reales, probar desde WordPress: aceptación 201, rechazo 429 con espera, validación 422, token expirado/inválido/reutilizado, caída de red, y vista móvil a 320 px. Verificar que se guardan los dos primeros envíos, que el tercero se rechaza durante la espera y que al cumplirse los 30 segundos se permiten dos envíos nuevos. Las pruebas locales con mocks no demuestran la configuración real de Turnstile, CORS ni la política de identidad.
 
-## Parámetros de enlace acordados
+## Enlaces personales por uid
 
-Se resuelve como precarga opcional, sin autologin ni tokens de acceso:
+En el panel privado, abrir **Usuarios** (`/panel/participantes`). La lista muestra ID, usuario, mail y enlace personal. Se puede cargar una persona o importar un CSV UTF-8 con columnas `id,user,mail` (también se admiten `uid`, `nombre` o `name`, y `email` como alias de esas columnas, separador punto y coma y BOM). El ID se carga manualmente, admite hasta 40 letras, números, guiones o guiones bajos y conserva los ceros iniciales. El archivo se valida completo antes de guardar; IDs o mails repetidos dentro del archivo se rechazan. Volver a importar un ID actualiza su usuario y mail. Si el mail pertenece a otro ID, se rechaza toda la importación. Se pueden descargar los datos y enlaces desde el botón de exportación.
+
+El ID cargado se guarda en `participants.uid` y se utiliza literalmente como `uid` en el enlace; por ejemplo, el ID `000123` produce `?uid=000123`. La columna interna `participants.id` se mantiene para las relaciones de la base de datos. Los participantes se guardan en `participants`, separados de las cuentas que acceden al panel. Antes de usar esta función, aplicar las migraciones de participantes y de `questions.participant_id`.
+
+- Página contenedora: `https://eventos.huesped.org.ar/aging-2026/?uid=UID_PERSONAL`.
+- El script de `iframe.html` construye: `https://aging.huesped.org.ar/formulario?uid=UID_PERSONAL`.
+- Tanto la página pública como el HTML directo consultan `POST /api/participants/resolve` con `{"uid":"..."}`. La respuesta contiene únicamente nombre y email, sin caché.
+- Con uid, nombre y email se completan automáticamente y quedan de solo lectura. El envío incluye el uid y la pregunta; Laravel vuelve a buscar al participante y usa los datos registrados, aunque se altere el HTML o el payload.
+- Un uid inválido, repetido, desconocido o una falla de carga muestran un mensaje y bloquean el envío. Las fallas de carga permiten reintentar.
+- Sin uid, se mantienen los campos manuales. El límite de dos preguntas y posterior espera de 30 segundos sigue aplicado por IP.
+
+El enlace personal permite recuperar los datos de esa persona; compartirlo permite usar ese mismo enlace. No inicia sesión ni habilita acceso al panel.
+
+## Parámetros de precarga manual
+
+Sin uid, siguen admitidos los parámetros anteriores, sin autologin:
 
 - `aging_nombre`: nombre, máximo 150 caracteres.
 - `aging_email`: email, máximo 255 caracteres y formato válido.

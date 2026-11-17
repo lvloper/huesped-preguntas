@@ -20,7 +20,7 @@ class ParticipantSubmissionTest extends TestCase
 
     public function test_submission_with_a_uid_uses_the_participant_data_without_manual_fields(): void
     {
-        $participant = Participant::factory()->create(['name' => 'Ana Pérez', 'email' => 'ana@example.com']);
+        $participant = Participant::factory()->create(['uid' => '123', 'name' => 'Ana Pérez', 'email' => 'ana@example.com']);
         Http::fake(['https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response(['success' => true, 'hostname' => 'eventos.huesped.org.ar', 'action' => 'question'])]);
 
         $this->postJson('/api/questions', ['uid' => $participant->uid, 'question' => 'Mi pregunta', 'cf-turnstile-response' => 'test-token'])

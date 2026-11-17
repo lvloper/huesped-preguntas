@@ -10,7 +10,7 @@ class ParticipantLookupController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        $data = $request->validate(['uid' => 'required|string|size:40|alpha_num:ascii']);
+        $data = $request->validate(['uid' => 'required|'.Participant::UID_RULES]);
         $participant = Participant::where('uid', $data['uid'])->first();
 
         if (! $participant) {

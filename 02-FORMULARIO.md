@@ -11,13 +11,13 @@
 
 Cada pregunta se relaciona con un nombre y un mail.
 
-- Si se resuelve la identificación mediante enlace, aprovechar esa identificación.
+- Con un enlace `?uid=...`, cargar nombre y email desde la tabla de participantes precargados y mostrarlos de solo lectura.
 - Si no está identificada la persona, mostrar los campos nombre y mail, además de la pregunta.
-- El mecanismo concreto del enlace sigue por resolver. Completar nombre y mail no equivale a verificar la identidad ni a autenticar al visitante.
+- La sección Usuarios del panel permite cargar el ID, usuario y mail manualmente o mediante CSV. El ID cargado se utiliza como uid del enlace. El uid identifica el registro y no permite acceder al panel privado.
 
 ## Flujo
 
-1. La persona accede al formulario y queda identificada mediante el enlace, si ese mecanismo está disponible; de lo contrario completa nombre y mail.
+1. La persona accede con un uid válido y se cargan sus datos; el iframe recibe el uid desde la página contenedora. Sin uid, completa nombre y mail manualmente.
 2. Escribe su pregunta.
 3. Mostrar Cloudflare Turnstile recién cuando empieza a escribir la pregunta.
 4. Al enviar, validar en el servidor los datos, Turnstile y el límite de frecuencia antes de aceptar y guardar la pregunta.
@@ -32,4 +32,4 @@ Cada pregunta se relaciona con un nombre y un mail.
 - Habilitar el envío nuevamente cuando corresponda según el límite del servidor.
 - Si el servidor rechaza el envío por el límite o por validación, la interfaz no debe mostrarlo como enviado correctamente.
 
-La forma de reconocer a la misma persona para este límite depende de la identificación pendiente. No elegir silenciosamente el mail escrito, la IP u otro dato como identidad verificada.
+El límite sigue aplicándose por IP: personas que comparten una red comparten la espera. El uid permite recuperar los datos del participante, pero no inicia una sesión de usuario ni habilita el panel privado.

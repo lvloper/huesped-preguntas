@@ -24,16 +24,22 @@ class ParticipantImport
             rewind($handle);
             $headers = fgetcsv($handle, 0, $delimiter, '"', '');
             $headers = array_map(fn (?string $header): string => strtolower(trim(ltrim($header ?? '', "\xEF\xBB\xBF"))), $headers);
-            $nameColumn = array_search('nombre', $headers, true);
-            if ($nameColumn === false) {
-                $nameColumn = array_search('name', $headers, true);
+            $columns = [];
+            foreach (['uid' => ['id', 'uid'], 'name' => ['user', 'nombre', 'name'], 'email' => ['mail', 'email']] as $field => $aliases) {
+                foreach ($aliases as $alias) {
+                    $column = array_search($alias, $headers, true);
+                    if ($column !== false) {
+                        $columns[$field] = $column;
+                        break;
+                    }
+                }
             }
-            $emailColumn = array_search('email', $headers, true);
-            if ($nameColumn === false || $emailColumn === false) {
-                throw ValidationException::withMessages(['csv' => 'El CSV debe tener las columnas nombre y email.']);
+            if (count($columns) !== 3) {
+                throw ValidationException::withMessages(['csv' => 'El CSV debe tener las columnas id, user y mail.']);
             }
 
             $participants = [];
+            $emails = [];
             $line = 1;
             while (($row = fgetcsv($handle, 0, $delimiter, '"', '')) !== false) {
                 $line++;
@@ -41,15 +47,19 @@ class ParticipantImport
                     continue;
                 }
 
-                $data = ['name' => trim($row[$nameColumn] ?? ''), 'email' => strtolower(trim($row[$emailColumn] ?? ''))];
-                $validator = Validator::make($data, ['name' => 'required|string|max:150', 'email' => 'required|email|max:255']);
+                $data = ['uid' => trim($row[$columns['uid']] ?? ''), 'name' => trim($row[$columns['name']] ?? ''), 'email' => strtolower(trim($row[$columns['email']] ?? ''))];
+                $validator = Validator::make($data, ['uid' => 'required|'.Participant::UID_RULES, 'name' => 'required|string|max:150', 'email' => 'required|email|max:255']);
                 if ($validator->fails()) {
-                    throw ValidationException::withMessages(['csv' => "Fila {$line}: revisá el nombre y el email."]);
+                    throw ValidationException::withMessages(['csv' => "Fila {$line}: revisá el ID, el usuario y el mail. El ID admite hasta 40 letras, números, guiones o guiones bajos."]);
                 }
-                if (isset($participants[$data['email']])) {
+                if (isset($participants[$data['uid']])) {
+                    throw ValidationException::withMessages(['csv' => "Fila {$line}: el ID está repetido en el archivo."]);
+                }
+                if (isset($emails[$data['email']])) {
                     throw ValidationException::withMessages(['csv' => "Fila {$line}: el email está repetido en el archivo."]);
                 }
-                $participants[$data['email']] = $data;
+                $participants[$data['uid']] = $data;
+                $emails[$data['email']] = true;
             }
 
             if ($participants === []) {
@@ -58,7 +68,10 @@ class ParticipantImport
 
             DB::transaction(function () use ($participants): void {
                 foreach ($participants as $data) {
-                    Participant::updateOrCreate(['email' => $data['email']], ['name' => $data['name']]);
+                    if (Participant::where('email', $data['email'])->where('uid', '!=', $data['uid'])->exists()) {
+                        throw ValidationException::withMessages(['csv' => "El mail del ID {$data['uid']} ya está asignado a otro ID."]);
+                    }
+                    Participant::updateOrCreate(['uid' => $data['uid']], ['name' => $data['name'], 'email' => $data['email']]);
                 }
             });
 

@@ -33,19 +33,40 @@ class ParticipantTest extends TestCase
         $this->assertDatabaseCount('participants', 0);
     }
 
-    public function test_moderator_can_create_a_participant_with_an_automatically_generated_uid(): void
+    public function test_moderator_can_create_a_participant_with_a_manually_assigned_id(): void
     {
         $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
 
-        $this->post('/panel/participantes', ['name' => 'Ana Pérez', 'email' => 'ANA@example.com', 'uid' => str_repeat('A', 40)])
+        $this->post('/panel/participantes', ['name' => 'Ana Pérez', 'email' => 'ANA@example.com', 'uid' => '000123'])
             ->assertRedirect('/panel/participantes')->assertSessionHas('status');
 
         $participant = Participant::sole();
-        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{40}$/', $participant->uid);
-        $this->assertNotSame(str_repeat('A', 40), $participant->uid);
+        $this->assertSame('000123', $participant->uid);
         $this->assertDatabaseHas('participants', ['name' => 'Ana Pérez', 'email' => 'ana@example.com']);
         $this->assertDatabaseCount('users', 1);
-        $this->get('/panel/participantes')->assertOk()->assertSee(route('formulario', ['uid' => $participant->uid]));
+        $this->get('/panel/participantes')->assertOk()->assertSee('Usuarios cargados')->assertSee('000123')
+            ->assertSee(route('formulario', ['uid' => '000123']));
+        $this->get('/panel')->assertOk()->assertSee('Usuarios');
+    }
+
+    public function test_manual_creation_requires_an_id(): void
+    {
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->post('/panel/participantes', ['name' => 'Ana', 'email' => 'ana@example.com'])->assertSessionHasErrors('uid');
+
+        $this->assertDatabaseCount('participants', 0);
+    }
+
+    public function test_manual_creation_rejects_a_duplicate_id_without_overwriting_the_user(): void
+    {
+        $participant = Participant::factory()->create(['uid' => '123', 'name' => 'Nombre original']);
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+
+        $this->post('/panel/participantes', ['uid' => '123', 'name' => 'Otro usuario', 'email' => 'another@example.com'])->assertSessionHasErrors('uid');
+
+        $this->assertDatabaseCount('participants', 1);
+        $this->assertDatabaseHas('participants', ['id' => $participant->id, 'uid' => '123', 'name' => 'Nombre original']);
     }
 
     public function test_participant_names_are_escaped_in_the_management_page(): void
@@ -58,25 +79,47 @@ class ParticipantTest extends TestCase
             ->assertDontSee('<script>alert("name")</script>', false);
     }
 
-    public function test_csv_import_updates_existing_names_and_preserves_personal_links(): void
+    public function test_csv_import_updates_data_by_the_supplied_id_and_preserves_personal_links(): void
     {
-        $participant = Participant::factory()->create(['name' => 'Nombre anterior', 'email' => 'ana@example.com']);
+        $participant = Participant::factory()->create(['uid' => '000123', 'name' => 'Nombre anterior', 'email' => 'old@example.com']);
         $uid = $participant->uid;
         $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
-        $file = UploadedFile::fake()->createWithContent('participantes.csv', "\xEF\xBB\xBFnombre;email\nAna Pérez;ANA@example.com\nLuis Gómez;luis@example.com\n");
+        $file = UploadedFile::fake()->createWithContent('participantes.csv', "\xEF\xBB\xBFid;user;mail\n000123;Ana Pérez;ANA@example.com\n456;Luis Gómez;luis@example.com\n");
 
         $this->post('/panel/participantes/importar', ['csv' => $file])->assertRedirect('/panel/participantes')->assertSessionHas('status');
 
         $this->assertDatabaseCount('participants', 2);
         $this->assertDatabaseHas('participants', ['id' => $participant->id, 'uid' => $uid, 'name' => 'Ana Pérez', 'email' => 'ana@example.com']);
-        $this->assertDatabaseHas('participants', ['name' => 'Luis Gómez', 'email' => 'luis@example.com']);
+        $this->assertDatabaseHas('participants', ['uid' => '456', 'name' => 'Luis Gómez', 'email' => 'luis@example.com']);
         $this->assertNotSame($uid, Participant::where('email', 'luis@example.com')->sole()->uid);
+    }
+
+    public function test_csv_import_accepts_uid_name_and_email_headers(): void
+    {
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+        $file = UploadedFile::fake()->createWithContent('participantes.csv', "uid,name,email\nUSER_1-A,Ana,ana@example.com\n");
+
+        $this->post('/panel/participantes/importar', ['csv' => $file])->assertRedirect('/panel/participantes')->assertSessionHas('status');
+
+        $this->assertDatabaseHas('participants', ['uid' => 'USER_1-A', 'name' => 'Ana', 'email' => 'ana@example.com']);
+    }
+
+    public function test_a_conflicting_email_rolls_back_all_rows_in_the_import(): void
+    {
+        Participant::factory()->create(['uid' => '123', 'name' => 'Nombre original', 'email' => 'ana@example.com']);
+        $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
+        $file = UploadedFile::fake()->createWithContent('participantes.csv', "id,user,mail\n456,Nombre nuevo,luis@example.com\n789,Otro nombre,ana@example.com\n");
+
+        $this->post('/panel/participantes/importar', ['csv' => $file])->assertSessionHasErrors('csv');
+
+        $this->assertDatabaseCount('participants', 1);
+        $this->assertDatabaseHas('participants', ['uid' => '123', 'name' => 'Nombre original', 'email' => 'ana@example.com']);
     }
 
     #[DataProvider('invalidCsvFiles')]
     public function test_invalid_csv_returns_validation_errors_without_partial_changes(string $csv): void
     {
-        $participant = Participant::factory()->create(['name' => 'Nombre original', 'email' => 'ana@example.com']);
+        $participant = Participant::factory()->create(['uid' => '123', 'name' => 'Nombre original', 'email' => 'ana@example.com']);
         $this->actingAs(User::factory()->create(['email' => User::PANEL_EMAIL]));
         $file = UploadedFile::fake()->createWithContent('participantes.csv', $csv);
 
@@ -91,10 +134,13 @@ class ParticipantTest extends TestCase
     {
         return [
             'empty file' => [''],
-            'missing headers' => ["nombre,telefono\nAna,123\n"],
-            'headers only' => ["nombre,email\n"],
-            'invalid row after valid row' => ["nombre,email\nNombre actualizado,ana@example.com\nOtra persona,no-es-email\n"],
-            'duplicate email' => ["nombre,email\nNombre actualizado,ana@example.com\nOtra persona,ANA@example.com\n"],
+            'missing id header' => ["nombre,email\nAna,ana@example.com\n"],
+            'headers only' => ["id,user,mail\n"],
+            'invalid row after valid row' => ["id,user,mail\n123,Nombre actualizado,ana@example.com\n456,Otra persona,no-es-email\n"],
+            'duplicate email' => ["id,user,mail\n123,Nombre actualizado,ana@example.com\n456,Otra persona,ANA@example.com\n"],
+            'duplicate id' => ["id,user,mail\n123,Nombre actualizado,ana@example.com\n123,Otra persona,another@example.com\n"],
+            'missing id' => ["id,user,mail\n,Ana,ana@example.com\n"],
+            'invalid id' => ["id,user,mail\n<script>,Ana,ana@example.com\n"],
         ];
     }
 
@@ -114,7 +160,7 @@ class ParticipantTest extends TestCase
 
     public function test_public_uid_lookup_returns_only_that_participants_name_and_email(): void
     {
-        $participant = Participant::factory()->create(['name' => 'Ana Pérez', 'email' => 'ana@example.com']);
+        $participant = Participant::factory()->create(['uid' => '000123', 'name' => 'Ana Pérez', 'email' => 'ana@example.com']);
         Participant::factory()->create(['name' => 'Otra persona', 'email' => 'other@example.com']);
 
         $this->postJson('/api/participants/resolve', ['uid' => $participant->uid])->assertOk()
@@ -132,7 +178,7 @@ class ParticipantTest extends TestCase
 
     public function test_a_malformed_uid_returns_422(): void
     {
-        $this->postJson('/api/participants/resolve', ['uid' => '1'])->assertUnprocessable()->assertJsonValidationErrors('uid');
+        $this->postJson('/api/participants/resolve', ['uid' => 'id con espacios'])->assertUnprocessable()->assertJsonValidationErrors('uid');
     }
 
     public function test_the_event_site_can_resolve_a_uid_with_cors(): void

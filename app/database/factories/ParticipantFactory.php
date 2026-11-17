@@ -18,6 +18,7 @@ class ParticipantFactory extends Factory
     public function definition(): array
     {
         return [
+            'uid' => fake()->unique()->bothify('USER-########'),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
         ];

@@ -8,6 +8,8 @@ Desde `app/`: `composer install`, copiar `.env.example` a `.env` si no existe, `
 
 Ejecutar `php artisan test --compact`. Login utiliza Breeze; registro y funcionalidades de perfil no están expuestas.
 
+La sección **Usuarios** del panel lista ID, usuario, mail y enlace personal. Permite carga manual e importación CSV con columnas `id,user,mail`; usa ese ID como uid y exporta los enlaces. Reimportar un ID actualiza sus datos. La página `/formulario?uid=...` completa los datos desde esa tabla. Aplicar las nuevas migraciones antes de usarla. El iframe de `embed/iframe.html` copia el uid de la URL de WordPress.
+
 El snippet WordPress está en `embed/formulario.html`; instrucciones en `embed/README.md`. No insertar en producción todavía. Configurar secreto solo en servidor. CORS permite el origen acordado, pero no autentica solicitudes.
 
 `AGING_POLL_MS` configura polling (5000 por defecto). Recibidas ordenadas por ID ascendente para mantener páginas estables ante nuevos envíos. Marcar respondida inicia una ventana local de 3 segundos; Deshacer cancela la escritura. Al vencer se persiste, con recuperación visible ante error.

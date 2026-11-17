@@ -86,13 +86,13 @@
   for (const field of ['name', 'email']) form.elements[field].readOnly = hasUid;
   if (!hasUid) {
     for (const [parameter, field, limit] of [['aging_nombre', 'name', 150], ['aging_email', 'email', 255]]) {
-    const values = params.getAll(parameter);
-    if (values.length !== 1) continue;
-    const value = values[0].trim();
-    if (!value || value.length > limit || /[\u0000-\u001f\u007f]/.test(value)) continue;
-    const input = form.elements[field];
-    input.value = value;
-    if (!input.checkValidity()) input.value = '';
+      const values = params.getAll(parameter);
+      if (values.length !== 1) continue;
+      const value = values[0].trim();
+      if (!value || value.length > limit || /[\u0000-\u001f\u007f]/.test(value)) continue;
+      const input = form.elements[field];
+      input.value = value;
+      if (!input.checkValidity()) input.value = '';
     }
   }
   const body = form.elements.body;
@@ -117,7 +117,7 @@
     if (identityLoading) return;
     identityStatus.hidden = false;
     profileRetry.hidden = true;
-    if (!/^[A-Za-z0-9]{40}$/.test(uid)) {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(uid)) {
       identityStatus.textContent = 'El enlace personal no es válido. Revisá que esté completo.';
       return;
     }

@@ -19,7 +19,7 @@ class QuestionController extends Controller
 {
     public function store(Request $request, SubmissionIdentity $identity): JsonResponse
     {
-        $data = $request->validate(['uid' => 'sometimes|required|string|size:40|alpha_num:ascii', 'name' => 'exclude_with:uid|required_without:uid|string|max:150', 'email' => 'exclude_with:uid|required_without:uid|email|max:255', 'question' => 'required|string|max:5000', 'cf-turnstile-response' => 'required|string|max:2048']);
+        $data = $request->validate(['uid' => 'sometimes|required|'.Participant::UID_RULES, 'name' => 'exclude_with:uid|required_without:uid|string|max:150', 'email' => 'exclude_with:uid|required_without:uid|email|max:255', 'question' => 'required|string|max:5000', 'cf-turnstile-response' => 'required|string|max:2048']);
         $participant = null;
         if (isset($data['uid'])) {
             $participant = Participant::where('uid', $data['uid'])->first();
