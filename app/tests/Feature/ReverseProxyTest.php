@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Providers\AppServiceProvider;
 use Tests\TestCase;
 
 class ReverseProxyTest extends TestCase
@@ -35,6 +36,15 @@ class ReverseProxyTest extends TestCase
             ->assertSee('data-panel-url="https://eventos.huesped.org.ar/aging-panel/panel"', false)
             ->assertSee('https://eventos.huesped.org.ar/aging-panel/panel.js', false);
         $this->get('https://aging.huesped.org.ar/formulario')->assertOk()->assertSee('data-aging-backend-url="https://eventos.huesped.org.ar/aging-panel"', false);
+    }
+
+    public function test_production_uses_canonical_url_when_upstream_overwrites_host(): void
+    {
+        $this->app->instance('env', 'production');
+        config(['app.url' => 'https://eventos.huesped.org.ar/aging-panel']);
+        (new AppServiceProvider($this->app))->boot();
+        $this->withHeaders(['Host' => 'aging.huesped.org.ar'])->get('https://aging.huesped.org.ar/login')
+            ->assertOk()->assertSee('action="https://eventos.huesped.org.ar/aging-panel/login"', false);
     }
 
     public function test_untrusted_forwarding_headers_are_ignored(): void
