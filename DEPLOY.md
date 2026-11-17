@@ -121,3 +121,57 @@ cd ~/htdocs/aging.huesped.org.ar
 ```
 
 El rollback elige el candidato anterior bueno. El wrapper `./deploy activate ID` selecciona una release retenida usando la tarea de rollback con candidato explícito y los mismos bloqueos; comprobar antes compatibilidad de esquema, revisión y estado de esa release. No se ensayó una selección en producción para documentarla. Cambiar release no restaura la base, .env ni uploads. El wrapper aún no ofrece test ni promote: esos comandos son el contrato propuesto en la skill y requieren implementación por ambiente.
+
+## Proxy inverso bajo /aging-panel (17/11/2026)
+
+URL pública: `https://eventos.huesped.org.ar/aging-panel`. El upstream sigue siendo `https://aging.huesped.org.ar/`. El proxy elimina el prefijo al reenviar; Laravel lo recupera de X-Forwarded-Prefix **solo desde proxies confiables**. No agregar el prefijo a las rutas Laravel.
+
+En `shared/.env`, conservar APP_KEY, DB y secretos existentes y actualizar:
+
+```dotenv
+APP_URL=https://eventos.huesped.org.ar/aging-panel
+APP_ENV=production
+APP_DEBUG=false
+SESSION_COOKIE=huesped-preguntas-session
+SESSION_DOMAIN=null
+SESSION_PATH=/aging-panel
+SESSION_SECURE_COOKIE=true
+SESSION_SAME_SITE=lax
+```
+
+`TRUSTED_PROXIES` debe contener las IP/CIDR verificadas de los saltos internos que recibe Laravel, separadas por coma. No usar `*` ni copiar una IP supuesta. Confirmar REMOTE_ADDR en la configuración/logs privados de aging y la cadena de CloudPanel/Cloudflare. El upstream debe conservar X-Forwarded-Host/Prefix/Proto/Port enviados por eventos; si otro proxy los sobrescribe hay que corregirlo allí. APP_URL por sí solo no corrige URLs generadas durante peticiones web.
+
+En el bloque Nginx de eventos provisto, conservar `location ^~ /aging-panel/`, `proxy_pass https://aging.huesped.org.ar/;`, SNI, validación TLS y las cabeceras Host/Forwarded-Host/Prefix/Proto/Port. Cambiar:
+
+```nginx
+# Laravel ya envía la cookie con el path correcto:
+proxy_cookie_path off;
+proxy_cookie_domain off;
+
+# En el proxy de entrada: no conservar X-Forwarded-For arbitrario del visitante.
+# Requiere que $remote_addr ya sea IP real si hay Cloudflare delante.
+proxy_set_header X-Forwarded-For $remote_addr;
+```
+
+No mantener `proxy_cookie_path / /aging-panel/` con SESSION_PATH=/aging-panel: puede duplicar el prefijo. `SESSION_DOMAIN=null` produce cookies sin dominio explícito, asociadas por el navegador a eventos; no hace falta reescribir dominio. Eliminar cookies antiguas del navegador o volver a ingresar tras el cambio.
+
+Si Cloudflare está delante, verificar primero el módulo real_ip de Nginx con rangos oficiales confiables y CF-Connecting-IP; no confiar en esa cabecera desde cualquier dirección. Si $remote_addr es todavía una IP de Cloudflare, el rate limit agrupará visitantes incorrectamente. Usar conexiones HTTPS al origen y bypass de caché Cloudflare para `/aging-panel/*`; `proxy_cache off` solamente controla la caché de Nginx.
+
+Conservar `proxy_redirect https://aging.huesped.org.ar/ /aging-panel/;` como respaldo, pero no reemplaza corregir URLs en HTML/JS. El `^~` evita que la regex de assets WordPress capture JS/CSS del panel.
+
+Después de actualizar el código y `.env`, desde la release activa, con el PHP usado por FPM:
+
+```bash
+cd ~/htdocs/aging.huesped.org.ar/current
+php8.5 artisan config:clear
+php8.5 artisan route:clear
+php8.5 artisan view:clear
+php8.5 artisan config:cache
+php8.5 artisan view:cache
+```
+
+No ejecutar `cache:clear` ni `optimize:clear`: no hace falta vaciar la caché de datos/rate limits para este ajuste. No regenerar APP_KEY ni migrar la base por este cambio. Validar Nginx y recargar desde CloudPanel tras editar el vhost.
+
+Verificar login, action del formulario, assets, logout, polling `/aging-panel/panel/data`, gestión de participantes y formulario `/aging-panel/formulario`. El iframe y snippet del repositorio ya apuntan al nuevo destino. El widget real debe permitir `eventos.huesped.org.ar`.
+
+Estado de esta revisión: código y tests preparados localmente; SSH por clave fue rechazado, por lo que no se modificó el `.env` remoto ni se limpiaron sus cachés. La lectura pública del login devolvió 200 pero todavía generaba action/assets hacia aging.huesped.org.ar.

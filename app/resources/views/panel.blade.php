@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ asset('panel.css') }}?v={{ filemtime(public_path('panel.css')) }}">
     <script src="{{ asset('panel.js') }}?v={{ filemtime(public_path('panel.js')) }}" defer></script>
 </head>
-<body data-poll-ms="{{ config('aging.poll_ms', 5000) }}">
+<body data-panel-url="{{ url('/panel') }}" data-poll-ms="{{ config('aging.poll_ms', 5000) }}">
 <header>
     <a class="brand" href="{{ route('dashboard') }}" aria-label="Fundación Huésped · Panel"><x-application-logo /></a>
     <span>Panel de preguntas</span>

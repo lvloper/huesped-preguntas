@@ -1,5 +1,6 @@
 (() => {
     'use strict';
+    const panelUrl = document.body.dataset.panelUrl;
     const $ = (id) => document.getElementById(id);
     let page = 1, answeredPage = 1, discardedPage = 1, receivedOrder = 'asc', received, selected = [], answered, discarded, discardedCount = 0, loading = false, version = 0;
     const busy = new Set(), pending = new Map();
@@ -81,10 +82,10 @@
     async function refresh() {
         if (loading) return; loading = true; const start = version, currentPage = page, currentAnsweredPage = answeredPage, currentDiscardedPage = discardedPage, currentOrder = receivedOrder;
         try {
-            const data = await request(`/panel/data?page=${currentPage}&order=${currentOrder}`);
+            const data = await request(`${panelUrl}/data?page=${currentPage}&order=${currentOrder}`);
             let archive, trash;
-            if (!$('answered-section').hidden) archive = await request(`/panel/data?answered=1&page=${currentAnsweredPage}`);
-            if (!$('discarded-section').hidden) trash = await request(`/panel/data?discarded=1&page=${currentDiscardedPage}`);
+            if (!$('answered-section').hidden) archive = await request(`${panelUrl}/data?answered=1&page=${currentAnsweredPage}`);
+            if (!$('discarded-section').hidden) trash = await request(`${panelUrl}/data?discarded=1&page=${currentDiscardedPage}`);
             if (start !== version || busy.size) return;
             const nextPage = Math.min(currentPage, data.received.last_page), nextAnsweredPage = archive ? Math.min(currentAnsweredPage, archive.answered.last_page) : answeredPage, nextDiscardedPage = trash ? Math.min(currentDiscardedPage, trash.discarded.last_page) : discardedPage;
             if (page !== nextPage || answeredPage !== nextAnsweredPage || discardedPage !== nextDiscardedPage) { page = nextPage; answeredPage = nextAnsweredPage; discardedPage = nextDiscardedPage; version++; return; }
@@ -99,7 +100,7 @@
         if (busy.has(id)) return; busy.add(id); version++; render();
         let failure;
         try {
-            await request(`/panel/questions/${id}${suffix}`, { method, body: JSON.stringify(values) }); report();
+            await request(`${panelUrl}/questions/${id}${suffix}`, { method, body: JSON.stringify(values) }); report();
         } catch (error) { failure = error.message; }
         finally { busy.delete(id); version++; await refresh(); render(); if (failure) report(failure); }
     }
@@ -109,7 +110,7 @@
         state.timer = setTimeout(async () => {
             state.saving = true; version++; render();
             try {
-                await request(`/panel/questions/${q.id}`, { method: 'PATCH', body: JSON.stringify({ answered: true }) });
+                await request(`${panelUrl}/questions/${q.id}`, { method: 'PATCH', body: JSON.stringify({ answered: true }) });
                 selected = selected.filter(item => item.id !== q.id);
                 if (received) received.data = received.data.map(item => item.id === q.id ? { ...item, answered: true } : item);
                 pending.delete(q.id); version++; render(); await refresh();

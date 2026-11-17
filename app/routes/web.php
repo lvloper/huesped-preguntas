@@ -4,7 +4,7 @@ use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\QuestionController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/panel');
+Route::get('/', fn () => redirect()->route('dashboard'));
 Route::get('/formulario', function () {
     return response()->view('formulario', [
         'formHtml' => file_get_contents(base_path('embed/formulario.html')),

@@ -17,7 +17,7 @@
     <body class="font-sans text-gray-900 antialiased">
         <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
             <div>
-                <a href="/" aria-label="Fundación Huésped · Inicio" style="display:block;background:#e73c4e;padding:22px 24px;border-radius:8px;max-width:calc(100vw - 32px)">
+                <a href="{{ url('/') }}" aria-label="Fundación Huésped · Inicio" style="display:block;background:#e73c4e;padding:22px 24px;border-radius:8px;max-width:calc(100vw - 32px)">
                     <x-application-logo style="display:block;width:287px;max-width:100%;height:auto" />
                 </a>
             </div>
