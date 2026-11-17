@@ -21,6 +21,7 @@ class AgingTest extends TestCase
         config([
             'aging.turnstile_secret' => 'test-secret',
             'aging.turnstile_hostname' => 'eventos.huesped.org.ar',
+            'aging.turnstile_iframe_hostname' => 'aging.huesped.org.ar',
         ]);
         Http::preventStrayRequests();
 
@@ -40,6 +41,53 @@ class AgingTest extends TestCase
             'selected' => false,
             'answered' => false,
         ]);
+    }
+
+    public function test_public_form_can_be_embedded_by_the_event_site_without_login(): void
+    {
+        $this->get('/formulario')->assertOk()
+            ->assertHeader('Content-Security-Policy', "frame-ancestors 'self' https://eventos.huesped.org.ar")
+            ->assertSee('<meta name="viewport"', false)
+            ->assertSee('Hacé tu pregunta');
+    }
+
+    public function test_submission_from_the_iframe_hostname_persists_question(): void
+    {
+        Http::fake([
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response([
+                'success' => true, 'hostname' => 'aging.huesped.org.ar', 'action' => 'question',
+            ]),
+        ]);
+
+        $this->postJson('/api/questions', $this->submission())->assertCreated();
+
+        $this->assertDatabaseHas('questions', ['email' => 'ana@example.com']);
+    }
+
+    public function test_submission_from_an_unapproved_hostname_returns_422(): void
+    {
+        Http::fake([
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response([
+                'success' => true, 'hostname' => 'unrelated.example', 'action' => 'question',
+            ]),
+        ]);
+
+        $this->postJson('/api/questions', $this->submission())->assertUnprocessable();
+
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_iframe_submission_with_an_unexpected_action_returns_422(): void
+    {
+        Http::fake([
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response([
+                'success' => true, 'hostname' => 'aging.huesped.org.ar', 'action' => 'login',
+            ]),
+        ]);
+
+        $this->postJson('/api/questions', $this->submission())->assertUnprocessable();
+
+        $this->assertDatabaseCount('questions', 0);
     }
 
     public function test_repeated_submission_returns_429_until_cooldown_expires(): void

@@ -24,8 +24,8 @@
 <script>
 (() => {
   'use strict';
-  const BACKEND_URL = 'BACKEND_URL'; // URL HTTPS de Laravel, sin barra final.
-  const TURNSTILE_SITEKEY = 'TURNSTILE_SITEKEY'; // Clave pública; nunca usar la secreta.
+  const BACKEND_URL = 'https://aging.huesped.org.ar'; // URL HTTPS de Laravel, sin barra final.
+  const TURNSTILE_SITEKEY = '0x4AAAAAAGFREyTTENRSqE3l'; // Clave pública; nunca usar la secreta.
   const root = document.getElementById('aging-question');
   const form = root.querySelector('form');
   // Optional convenience only: URL values never establish authenticated identity.
@@ -70,7 +70,7 @@
         'response-field': false,
         callback(value) { token = value; retry.hidden = true; update(); },
         'expired-callback'() { verificationError('La verificación venció. Volvé a verificar para enviar.'); resetVerification(); },
-        'error-callback'() { verificationError('No se pudo completar la verificación. Reintentá.'); return true; },
+        'error-callback'(code) { verificationError('No se pudo completar la verificación. Reintentá.' + (code ? ` Código: ${code}.` : '')); return true; },
         'timeout-callback'() { verificationError('La verificación agotó el tiempo. Reintentá.'); }
       });
     } catch (_) { verificationError('No se pudo iniciar la verificación. Reintentá.'); }

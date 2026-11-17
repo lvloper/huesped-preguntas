@@ -25,7 +25,8 @@ class QuestionController extends Controller
         } catch (ConnectionException $e) {
             return response()->json(['message' => 'No se pudo verificar. Intentá nuevamente.'], 503);
         }
-        if (! $verification->successful() || $verification->json('success') !== true || ($dummyKey ? $verification->json('hostname') !== 'example.com' : ($verification->json('hostname') !== config('aging.turnstile_hostname') || $verification->json('action') !== 'question'))) {
+        $allowedHostnames = array_filter([config('aging.turnstile_hostname'), config('aging.turnstile_iframe_hostname')]);
+        if (! $verification->successful() || $verification->json('success') !== true || ($dummyKey ? $verification->json('hostname') !== 'example.com' : (! in_array($verification->json('hostname'), $allowedHostnames, true) || $verification->json('action') !== 'question'))) {
             return response()->json(['message' => 'Verificación inválida. Intentá nuevamente.'], 422);
         }
         $cacheKey = 'question:'.hash('sha256', $key);
