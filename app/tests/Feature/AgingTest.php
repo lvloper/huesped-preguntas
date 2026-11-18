@@ -49,7 +49,8 @@ class AgingTest extends TestCase
         $this->get('/formulario')->assertOk()
             ->assertHeader('Content-Security-Policy', "frame-ancestors 'self' https://eventos.huesped.org.ar")
             ->assertSee('<meta name="viewport"', false)
-            ->assertSee('Hacé tu pregunta');
+            ->assertSeeText('Deja tu pregunta/ Leave your question.')
+            ->assertSeeText('Por favor, aclara para qué orador y charla es/ Please specify which speaker and session it is for.');
     }
 
     public function test_submission_from_the_iframe_hostname_persists_question(): void
